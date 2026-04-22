@@ -71,9 +71,6 @@ class MemberController extends Controller
             'status' => 'required|string|in:active,inactive',
         ]);
 
-        // Tambahkan nomor anggota otomatis
-        $validatedData['member_number'] = Member::generateMemberNumber();
-
         $member = Member::create($validatedData);
 
         if ($request->wantsJson()) {

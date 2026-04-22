@@ -18,7 +18,6 @@ class MemberFactory extends Factory
     public function definition(): array
     {
         return [
-            'member_number' => (string) $this->faker->unique()->randomNumber(5),
             'name' => $this->faker->name(),
             'address' => $this->faker->address(),
             'phone_number' => $this->faker->phoneNumber(),

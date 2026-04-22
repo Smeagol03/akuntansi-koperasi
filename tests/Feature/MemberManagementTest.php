@@ -25,26 +25,24 @@ it('can create a new member', function () {
     $response = $this->postJson('/api/members', $memberData);
 
     $response->assertStatus(201)
-        ->assertJsonFragment(['member_number' => (string) $memberData['member_number']]);
+        ->assertJsonFragment(['name' => $memberData['name']])
+        ->assertJsonPath('member_number', 'KMP-'.now()->year.'-0001'); // Auto-generated
 
-    $this->assertDatabaseHas('members', ['member_number' => $memberData['member_number']]);
+    $this->assertDatabaseHas('members', ['name' => $memberData['name']]);
 });
 
 it('does not create a member with invalid data', function () {
     $response = $this->postJson('/api/members', []); // Empty data
 
-    $response->assertJsonValidationErrors(['member_number', 'name', 'address', 'join_date', 'status']);
+    // member_number tidak wajib di-input karena auto-generated oleh sistem
+    $response->assertJsonValidationErrors(['name', 'address', 'join_date', 'status']);
 });
 
-it('does not create a member with a non-unique member number', function () {
-    $existingMember = Member::factory()->create();
-    $memberData = Member::factory()->make(['member_number' => $existingMember->member_number])->toArray();
-
-    $response = $this->postJson('/api/members', $memberData);
-
-    $response->assertJsonValidationErrors(['member_number']);
+it('skips member_number uniqueness check because it is auto-generated', function () {
+    // member_number selalu unik karena di-generate berdasarkan urutan DB
+    $member = Member::factory()->create();
+    expect($member->member_number)->toStartWith('KMP-');
 });
-
 
 it('can retrieve a single member', function () {
     $member = Member::factory()->create();
@@ -63,7 +61,7 @@ it('can update an existing member', function () {
         'phone_number' => '081234567890',
         'join_date' => '2023-01-01',
         'status' => 'inactive',
-        'member_number' => 'UPD' . fake()->unique()->randomNumber(5),
+        'member_number' => 'UPD'.fake()->unique()->randomNumber(5),
     ];
 
     $response = $this->putJson("/api/members/{$member->id}", $updatedData);
@@ -90,7 +88,6 @@ it('does not update a member with a non-unique member number', function () {
 
     $response->assertJsonValidationErrors(['member_number']);
 });
-
 
 it('can delete a member', function () {
     $member = Member::factory()->create();
@@ -127,4 +124,3 @@ it('can delete a member via web route', function () {
     $response->assertRedirect();
     $this->assertDatabaseMissing('members', ['id' => $member->id]);
 });
-

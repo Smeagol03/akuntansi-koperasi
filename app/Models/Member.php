@@ -26,6 +26,18 @@ class Member extends Model
     ];
 
     /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Member $member) {
+            if (!$member->member_number) {
+                $member->member_number = self::generateMemberNumber();
+            }
+        });
+    }
+
+    /**
      * Generate Nomor Anggota Otomatis (Format: KMP-YYYY-0001)
      */
     public static function generateMemberNumber(): string

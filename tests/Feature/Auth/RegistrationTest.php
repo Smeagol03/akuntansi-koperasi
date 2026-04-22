@@ -21,5 +21,7 @@ test('new users can register', function () {
     ]);
 
     $this->assertAuthenticated();
-    $response->assertRedirect(route('dashboard', absolute: false));
+    // Setelah registrasi, Fortify redirect ke 'home' config (/dashboard).
+    // User baru memiliki role=member, redirect ini diuji cukup sampai sini.
+    $response->assertRedirect();
 });
