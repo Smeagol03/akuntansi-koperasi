@@ -24,11 +24,14 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $this->passwordRules(),
         ])->validate();
 
+        // Jika user pertama, jadikan Admin otomatis (Best Practice untuk aplikasi siap instal)
+        $role = User::count() === 0 ? 'admin' : 'member';
+
         return User::create([
             'name' => $input['name'],
             'email' => $input['email'],
             'password' => $input['password'],
-            'role' => 'member',
+            'role' => $role,
         ]);
     }
 }

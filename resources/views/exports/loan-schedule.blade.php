@@ -23,10 +23,13 @@
     </style>
 </head>
 <body>
+    @php
+        $appName = \App\Models\AppSetting::getVal('app_name', 'Koperasi Merah Putih');
+        $appAddress = \App\Models\AppSetting::getVal('app_address', 'Sistem Akuntansi Koperasi Terintegrasi');
+    @endphp
     <div class="header">
-        <h1>Koperasi Merah Putih</h1>
-        <p>Sistem Akuntansi Koperasi Terintegrasi</p>
-        <p>Jalan Merdeka No. 1, Jakarta | Telp: (021) 1234567</p>
+        <h1>{{ $appName }}</h1>
+        <p>{{ $appAddress }}</p>
     </div>
 
     <div class="section-title">Informasi Anggota & Pinjaman</div>

@@ -6,6 +6,7 @@ use App\Models\LoanSchedule;
 use App\Models\SavingTransaction;
 use App\Models\SavingAccount;
 use App\Models\CashAccount;
+use App\Models\Coa;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -117,12 +118,12 @@ class ReportController extends Controller
             'outstanding_principal' => $outstandingPrincipal,
         ];
 
-        // 4. Perhitungan SHU
+        // 4. Perhitungan SHU (Dari Pendapatan Bunga)
         $shu = [
             'total_pendapatan_bunga' => $this->calculateTotalInterestEarned(),
         ];
 
-        // 5. Rasio Keuangan
+        // 5. Rasio Keuangan & Monitoring Akun
         $cashBalance = (float) CashAccount::sum('balance');
         $overdueAmount = (float) LoanSchedule::overdue()->sum('total_due');
         
@@ -132,12 +133,20 @@ class ReportController extends Controller
             'liquidity' => $savingsBalance > 0 ? round(($cashBalance / $savingsBalance) * 100, 2) : 0,
         ];
 
+        // 6. Analitik Lanjutan: Komposisi Risiko Kredit
+        $loanRiskComposition = [
+            ['name' => 'Lancar', 'value' => (float) Loan::where('status', 'active')->whereDoesntHave('schedules', fn($q) => $q->overdue())->sum('amount')],
+            ['name' => 'Dalam Perhatian', 'value' => (float) Loan::where('status', 'pending')->sum('amount')],
+            ['name' => 'Macet (Overdue)', 'value' => (float) Loan::whereHas('schedules', fn($q) => $q->overdue())->sum('amount')],
+        ];
+
         return [
             'members' => $members,
             'savings' => $savings,
             'loans' => $loans,
             'shu' => $shu,
             'ratios' => $ratios,
+            'loan_risk' => $loanRiskComposition,
             'monthly_trends' => $this->getMonthlyTrends(),
             'last_transactions' => SavingTransaction::with('account.member')->latest()->take(5)->get(),
             'upcoming_installments' => LoanSchedule::with('loan.member')->upcoming(7)->get(),

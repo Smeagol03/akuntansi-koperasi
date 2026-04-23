@@ -8,6 +8,7 @@ use App\Models\SavingAccount;
 use App\Models\SavingTransaction;
 use App\Models\SavingInterestConfig;
 use App\Models\CashAccount;
+use App\Models\AppSetting;
 use App\Models\Loan;
 use App\Models\LoanRepayment;
 use App\Services\LoanCalculator;
@@ -17,10 +18,26 @@ use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
+    /**
+     * Seed the application's database.
+     */
     public function run(): void
     {
         // 0. Create Accounting COA
         $this->call(CoaSeeder::class);
+
+        // 0.5 Create App Settings
+        $settings = [
+            ['key' => 'app_name', 'value' => 'Koperasi Merah Putih', 'type' => 'string'],
+            ['key' => 'app_address', 'value' => 'Jalan Merdeka No. 1, Jakarta', 'type' => 'string'],
+            ['key' => 'app_logo', 'value' => '/favicon.svg', 'type' => 'string'],
+            ['key' => 'default_interest_method', 'value' => 'flat', 'type' => 'string'],
+            ['key' => 'default_penalty_rate', 'value' => '0.1', 'type' => 'numeric'],
+        ];
+
+        foreach ($settings as $setting) {
+            AppSetting::create($setting);
+        }
 
         // 1. Create Configs
         $configs = [
@@ -56,6 +73,7 @@ class DatabaseSeeder extends Seeder
         $savingsService = app(\App\Services\SavingsService::class);
 
         foreach ($members as $member) {
+            // Initial Deposits (This will automatically update CashAccount via Service)
             $savingsService->deposit($member, 'pokok', 100000, $member->join_date, 'Setoran awal pokok');
             $savingsService->deposit($member, 'wajib', 50000, $member->join_date, 'Setoran awal wajib');
             $savingsService->deposit($member, 'sukarela', rand(100000, 1000000), $member->join_date, 'Setoran awal sukarela');
@@ -112,6 +130,8 @@ class DatabaseSeeder extends Seeder
                         'amount' => $row['total_due'],
                         'payment_date' => $row['due_date'],
                     ]);
+
+                    // Update cash for repayment
                     app(\App\Services\CashLedgerService::class)->record(
                         $cashMain->id, (float) $row['total_due'], 'income', 'angsuran', "Angsuran #{$loan->id} - {$member->name}", $repayment, $row['due_date']
                     );
