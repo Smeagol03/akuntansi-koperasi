@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Loan;
 use App\Models\LoanSchedule;
 use App\Models\SavingTransaction;
 use App\Models\SavingAccount;

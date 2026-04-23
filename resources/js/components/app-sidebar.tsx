@@ -1,19 +1,16 @@
 import { Link } from '@inertiajs/react';
-import { 
-    BookOpen, 
-    FolderGit2, 
-    LayoutGrid, 
-    Users, 
-    Wallet, 
-    CreditCard, 
-    CalendarClock, 
+import {
+    LayoutGrid,
+    Users,
+    Wallet,
+    CreditCard,
+    CalendarClock,
     Landmark,
     BookText,
     History,
     FilePieChart
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
-import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import {
@@ -25,12 +22,12 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { 
-    dashboard, 
-    web_members_index, 
-    web_savings_index, 
-    web_loans_index, 
-    web_loans_schedules, 
+import {
+    dashboard,
+    web_members_index,
+    web_savings_index,
+    web_loans_index,
+    web_loans_schedules,
     web_cash_index,
     web_accounting_journals,
     web_accounting_ledger,
@@ -89,19 +86,6 @@ const accountingNavItems: NavItem[] = [
     },
 ];
 
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: FolderGit2,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/breadcrumbs',
-        icon: BookOpen,
-    },
-];
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
         <Sidebar variant="inset" {...props} collapsible="icon">
@@ -123,7 +107,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarContent>
 
             <SidebarFooter>
-                <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>
         </Sidebar>

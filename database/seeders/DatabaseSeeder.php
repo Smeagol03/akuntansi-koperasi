@@ -14,19 +14,47 @@ use App\Models\LoanRepayment;
 use App\Services\LoanCalculator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // 0. Create Accounting COA
+        // ==========================================
+        // BAGIAN 1: DATA MASTER (WAJIB UNTUK SISTEM)
+        // ==========================================
+        
+        // 1.1 Bagan Akun (COA) - Jantung Akuntansi
         $this->call(CoaSeeder::class);
 
-        // 0.5 Create App Settings
+        // 1.2 Pengaturan Aplikasi & Branding
+        $this->seedMasterSettings();
+
+        // 1.3 Konfigurasi Jenis Simpanan & Bunga
+        $this->seedSavingConfigs();
+
+        // 1.4 Akun Kas & Bank Utama
+        $this->seedInitialCashAccounts();
+
+        // 1.5 Admin Utama (Optional, bisa buat lewat Register juga)
+        if (User::count() === 0) {
+            User::factory()->create([
+                'name' => 'Admin Koperasi',
+                'email' => 'admin@koperasi.com',
+                'password' => Hash::make('password'),
+                'role' => 'admin',
+            ]);
+        }
+
+        // ==========================================
+        // BAGIAN 2: DATA DUMMY / CONTOH (OPSIONAL)
+        // ==========================================
+        // Hapus atau beri komentar pada baris di bawah ini jika ingin database "BERSIH"
+        
+        $this->seedSampleData(); 
+    }
+
+    private function seedMasterSettings()
+    {
         $settings = [
             ['key' => 'app_name', 'value' => 'Koperasi Merah Putih', 'type' => 'string'],
             ['key' => 'app_address', 'value' => 'Jalan Merdeka No. 1, Jakarta', 'type' => 'string'],
@@ -36,10 +64,12 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($settings as $setting) {
-            AppSetting::create($setting);
+            AppSetting::updateOrCreate(['key' => $setting['key']], $setting);
         }
+    }
 
-        // 1. Create Configs
+    private function seedSavingConfigs()
+    {
         $configs = [
             ['type' => 'pokok', 'interest_rate' => 0],
             ['type' => 'wajib', 'interest_rate' => 0],
@@ -48,95 +78,31 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($configs as $cfg) {
-            SavingInterestConfig::create($cfg);
+            SavingInterestConfig::updateOrCreate(['type' => $cfg['type']], $cfg);
         }
+    }
 
-        // 2. Create Cash Accounts
-        $cashMain = CashAccount::create(['name' => 'Kas Utama', 'type' => 'cash', 'balance' => 0, 'status' => 'active']);
-        $bankBRI = CashAccount::create(['name' => 'Rekening Bank', 'type' => 'bank', 'account_number' => '00123456789', 'balance' => 0, 'status' => 'active']);
+    private function seedInitialCashAccounts()
+    {
+        CashAccount::updateOrCreate(['name' => 'Kas Utama'], ['type' => 'cash', 'balance' => 0, 'status' => 'active']);
+        CashAccount::updateOrCreate(['name' => 'Rekening Bank'], ['type' => 'bank', 'account_number' => '00123456789', 'balance' => 0, 'status' => 'active']);
+    }
 
-        // 3. Create Admin User
-        User::factory()->create([
-            'name' => 'Admin Koperasi',
-            'email' => 'admin@koperasi.com',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
-        ]);
+    /**
+     * Logika untuk mengisi data contoh (Dummy)
+     */
+    private function seedSampleData()
+    {
+        // Hanya jalankan jika di lingkungan lokal/testing
+        if (!app()->environment('local')) return;
 
-        // 4. Create 20 Members
-        $members = Member::factory()->count(20)->create([
-            'notes' => 'Catatan anggota hasil pendaftaran awal.',
-            'emergency_contact_name' => 'Keluarga Inti',
-            'emergency_contact_phone' => '081234567890',
-        ]);
-
+        $members = Member::factory()->count(10)->create();
         $savingsService = app(\App\Services\SavingsService::class);
+        $cashMain = CashAccount::where('name', 'Kas Utama')->first();
 
         foreach ($members as $member) {
-            // Initial Deposits (This will automatically update CashAccount via Service)
             $savingsService->deposit($member, 'pokok', 100000, $member->join_date, 'Setoran awal pokok');
             $savingsService->deposit($member, 'wajib', 50000, $member->join_date, 'Setoran awal wajib');
-            $savingsService->deposit($member, 'sukarela', rand(100000, 1000000), $member->join_date, 'Setoran awal sukarela');
-        }
-
-        // 5. Create Loans & Schedules using Calculator
-        $loanMembers = $members->random(5);
-        foreach ($loanMembers as $member) {
-            $amount = $this->faker()->randomElement([1000000, 2000000, 5000000, 10000000]);
-            $interestRate = 1.5;
-            $term = 12;
-            $method = 'flat';
-
-            // Gunakan Calculator agar Sinkron
-            $calc = LoanCalculator::calculate($amount, $interestRate, $term, $method);
-
-            $loan = Loan::create([
-                'member_id' => $member->id,
-                'amount' => $amount,
-                'interest_rate' => $interestRate,
-                'interest_method' => $method,
-                'penalty_rate' => 0.1,
-                'term_months' => $term,
-                'monthly_installment' => $calc['monthly_total'],
-                'status' => 'active',
-                'apply_date' => now()->subMonths(3)->format('Y-m-d'),
-                'approved_date' => now()->subMonths(3)->format('Y-m-d'),
-            ]);
-
-            // Record cash disbursement
-            app(\App\Services\CashLedgerService::class)->record(
-                $cashMain->id, (float) $loan->amount, 'expense', 'pencairan', "Pencairan #{$loan->id} - {$member->name}", $loan, $loan->approved_date
-            );
-
-            // Generate Schedules via Calculator
-            $rows = LoanCalculator::generateScheduleRows($amount, $interestRate, $term, $calc['monthly_total'], $method, $loan->approved_date);
-            
-            foreach ($rows as $row) {
-                $status = ($row['installment_number'] <= 2) ? 'paid' : 'pending';
-                if (strtotime($row['due_date']) < time() && $status === 'pending') $status = 'overdue';
-
-                $schedule = $loan->schedules()->create([
-                    'installment_number' => $row['installment_number'],
-                    'due_date' => $row['due_date'],
-                    'principal_amount' => $row['principal_amount'],
-                    'interest_amount' => $row['interest_amount'],
-                    'total_due' => $row['total_due'],
-                    'status' => $status,
-                    'paid_at' => $status === 'paid' ? $row['due_date'] : null,
-                ]);
-
-                if ($status === 'paid') {
-                    $repayment = $loan->repayments()->create([
-                        'amount' => $row['total_due'],
-                        'payment_date' => $row['due_date'],
-                    ]);
-
-                    // Update cash for repayment
-                    app(\App\Services\CashLedgerService::class)->record(
-                        $cashMain->id, (float) $row['total_due'], 'income', 'angsuran', "Angsuran #{$loan->id} - {$member->name}", $repayment, $row['due_date']
-                    );
-                }
-            }
         }
     }
 

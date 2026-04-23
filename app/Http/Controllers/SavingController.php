@@ -8,6 +8,7 @@ use App\Models\SavingTransaction;
 use App\Services\SavingsService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Exception;
 
 class SavingController extends Controller
 {
@@ -16,106 +17,84 @@ class SavingController extends Controller
     ) {}
 
     /**
-     * Render the Savings Inertia Page
+     * Display a listing of savings accounts.
      */
     public function indexView(Request $request)
     {
         $query = SavingAccount::with('member');
 
-        // Pencarian Advanced (berdasarkan nama anggota atau nomor rekening)
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('account_number', 'like', "%{$search}%")
-                  ->orWhereHas('member', function($mq) use ($search) {
-                      $mq->where('name', 'like', "%{$search}%")
-                        ->orWhere('member_number', 'like', "%{$search}%");
-                  });
-            });
+            $query->whereHas('member', function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('member_number', 'like', "%{$search}%");
+            })->orWhere('account_number', 'like', "%{$search}%");
         }
 
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-
-        $accounts = $query->orderBy('created_at', 'desc')->paginate(15)->withQueryString();
+        $accounts = $query->paginate(15)->withQueryString();
 
         return Inertia::render('savings/index', [
             'accounts' => $accounts,
-            'filters' => $request->only(['search', 'type'])
+            'filters' => $request->only(['search'])
         ]);
     }
 
     /**
-     * Store saving from Web form using Member Number (KMP-XXXX)
+     * Handle savings deposit from web form.
      */
     public function storeFromWeb(Request $request)
     {
-        $validatedData = $request->validate([
-            'member_number' => 'required|string|exists:members,member_number',
-            'amount' => 'required|numeric|min:0.01',
-            'type' => 'required|string|in:pokok,wajib,sukarela,berjangka',
-            'description' => 'nullable|string',
+        $validated = $request->validate([
+            'member_number' => 'required|exists:members,member_number',
+            'type' => 'required|in:pokok,wajib,sukarela,berjangka',
+            'amount' => 'required|numeric|min:1',
             'transaction_date' => 'required|date',
+            'description' => 'nullable|string|max:255',
         ]);
 
-        $member = Member::where('member_number', $validatedData['member_number'])->firstOrFail();
+        $member = Member::where('member_number', $validated['member_number'])->firstOrFail();
 
         $this->savingsService->deposit(
             $member,
-            $validatedData['type'],
-            (float) $validatedData['amount'],
-            $validatedData['transaction_date'],
-            $validatedData['description']
+            $validated['type'],
+            (float) $validated['amount'],
+            $validated['transaction_date'],
+            $validated['description'] ?? "Setoran simpanan {$validated['type']}"
         );
 
         return redirect()->back();
     }
 
     /**
-     * Tarik simpanan sukarela dari Web form
+     * Handle savings withdrawal from web form.
      */
     public function withdrawFromWeb(Request $request)
     {
-        $validatedData = $request->validate([
-            'member_number' => 'required|string|exists:members,member_number',
-            'amount' => 'required|numeric|min:0.01',
-            'description' => 'nullable|string|max:255',
+        $validated = $request->validate([
+            'member_number' => 'required|exists:members,member_number',
+            'type' => 'required|in:pokok,wajib,sukarela,berjangka',
+            'amount' => 'required|numeric|min:1',
             'transaction_date' => 'required|date',
+            'description' => 'nullable|string|max:255',
         ]);
 
-        $member = Member::where('member_number', $validatedData['member_number'])->firstOrFail();
-        
-        // Simpan sebagai nilai negatif melalui service
-        $this->savingsService->deposit(
-            $member,
-            'sukarela',
-            -(float) abs($validatedData['amount']),
-            $validatedData['transaction_date'],
-            $validatedData['description'] ?? 'Penarikan Simpanan'
-        );
+        $member = Member::where('member_number', $validated['member_number'])->firstOrFail();
+
+        try {
+            $this->savingsService->withdraw(
+                $member,
+                $validated['type'],
+                (float) $validated['amount'],
+                $validated['transaction_date'],
+                $validated['description'] ?? "Penarikan simpanan {$validated['type']}"
+            );
+        } catch (Exception $e) {
+            return redirect()->back()->withErrors(['amount' => $e->getMessage()]);
+        }
 
         return redirect()->back();
     }
 
-    /**
-     * Display a listing of saving transactions for a member.
-     */
-    public function index(Member $member)
-    {
-        $accounts = $member->savingAccounts()->with('transactions')->get();
-
-        $summary = [
-            'total_pokok' => $member->savingAccounts()->where('type', 'pokok')->sum('balance'),
-            'total_wajib' => $member->savingAccounts()->where('type', 'wajib')->sum('balance'),
-            'total_sukarela' => $member->savingAccounts()->where('type', 'sukarela')->sum('balance'),
-            'total_keseluruhan' => $member->savingAccounts()->sum('balance'),
-        ];
-
-        return response()->json([
-            'member' => $member,
-            'summary' => $summary,
-            'accounts' => $accounts,
-        ]);
-    }
+    // API methods kept for potential future use
+    public function index(Member $member) { return response()->json($member->savingAccounts()->with('transactions')->get()); }
 }

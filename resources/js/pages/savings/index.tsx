@@ -3,7 +3,7 @@ import { dashboard, web_savings_index, web_savings_store, web_savings_withdraw }
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
-import { Plus, ArrowUpDown, Search, ArrowDownLeft, Wallet } from 'lucide-react';
+import { Plus, ArrowUpDown, Search, ArrowDownLeft, Wallet, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useState, useEffect } from 'react';
@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 
 interface SavingAccount {
@@ -74,6 +74,7 @@ export default function SavingsIndex({ accounts, filters }: SavingsProps) {
         reset: resetWithdraw,
     } = useForm({
         member_number: '',
+        type: 'sukarela', // Tambahkan type default
         amount: '',
         description: '',
         transaction_date: new Date().toISOString().split('T')[0],
@@ -101,7 +102,7 @@ export default function SavingsIndex({ accounts, filters }: SavingsProps) {
                 toast.success('Setoran simpanan berhasil dicatat');
             },
             onError: () => {
-                toast.error('Gagal mencatat simpanan. Pastikan nomor anggota terdaftar.');
+                toast.error('Gagal mencatat simpanan. Periksa kembali form.');
             },
         });
     };
@@ -114,8 +115,9 @@ export default function SavingsIndex({ accounts, filters }: SavingsProps) {
                 resetWithdraw();
                 toast.success('Penarikan simpanan berhasil dicatat');
             },
-            onError: () => {
-                toast.error('Gagal mencatat penarikan. Pastikan nomor anggota terdaftar.');
+            onError: (errs) => {
+                const firstError = Object.values(errs)[0];
+                toast.error(firstError || 'Gagal mencatat penarikan.');
             },
         });
     };
@@ -147,7 +149,10 @@ export default function SavingsIndex({ accounts, filters }: SavingsProps) {
             cell: ({ row }) => {
                 const balance = parseFloat(row.original.balance);
                 return (
-                    <div className="text-right font-bold text-primary">
+                    <div className={cn(
+                        "text-right font-bold",
+                        balance < 0 ? "text-red-600" : "text-primary"
+                    )}>
                         {formatCurrency(balance)}
                     </div>
                 );
@@ -188,15 +193,15 @@ export default function SavingsIndex({ accounts, filters }: SavingsProps) {
                         {/* Modal Tarik Simpanan */}
                         <Dialog open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen}>
                             <DialogTrigger asChild>
-                                <Button variant="outline">
-                                    <ArrowDownLeft className="mr-2 h-4 w-4" /> Tarik
+                                <Button variant="outline" className="border-red-200 hover:bg-red-50 text-red-600">
+                                    <ArrowDownLeft className="mr-2 h-4 w-4" /> Tarik Dana
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[425px]">
                                 <DialogHeader>
-                                    <DialogTitle>Penarikan Simpanan Sukarela</DialogTitle>
+                                    <DialogTitle>Penarikan Dana Simpanan</DialogTitle>
                                     <DialogDescription>
-                                        Catat penarikan simpanan sukarela anggota.
+                                        Kurangi saldo rekening anggota untuk penarikan tunai.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <form onSubmit={submitWithdraw} className="space-y-4 pt-4">
@@ -209,6 +214,22 @@ export default function SavingsIndex({ accounts, filters }: SavingsProps) {
                                             placeholder="KMP-2026-XXXX"
                                             required
                                         />
+                                        {withdrawErrors.member_number && <p className="text-xs text-red-600 font-medium">{withdrawErrors.member_number}</p>}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="withdraw-type">Jenis Simpanan *</Label>
+                                        <Select value={withdrawData.type} onValueChange={(val) => setWithdrawData('type', val)}>
+                                            <SelectTrigger id="withdraw-type">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="sukarela">Sukarela</SelectItem>
+                                                <SelectItem value="pokok">Pokok</SelectItem>
+                                                <SelectItem value="wajib">Wajib</SelectItem>
+                                                <SelectItem value="berjangka">Berjangka</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        {withdrawErrors.type && <p className="text-xs text-red-600 font-medium">{withdrawErrors.type}</p>}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="withdraw-amount">Jumlah Penarikan (Rp) *</Label>
@@ -219,6 +240,12 @@ export default function SavingsIndex({ accounts, filters }: SavingsProps) {
                                             onChange={(e) => setWithdrawData('amount', e.target.value)}
                                             required
                                         />
+                                        {withdrawErrors.amount && (
+                                            <div className="flex items-center gap-1 text-red-600">
+                                                <AlertCircle className="h-3 w-3" />
+                                                <p className="text-xs font-bold">{withdrawErrors.amount}</p>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="withdraw-date">Tanggal Tarik *</Label>
@@ -264,6 +291,7 @@ export default function SavingsIndex({ accounts, filters }: SavingsProps) {
                                             placeholder="KMP-2026-XXXX"
                                             required
                                         />
+                                        {errors.member_number && <p className="text-xs text-red-600 font-medium">{errors.member_number}</p>}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="type">Jenis Simpanan *</Label>

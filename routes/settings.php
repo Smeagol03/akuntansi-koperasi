@@ -22,6 +22,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('settings/app', [\App\Http\Controllers\Settings\AppController::class, 'update'])
         ->middleware('admin')
         ->name('app.update');
+    Route::post('settings/app/initialize', [\App\Http\Controllers\Settings\AppController::class, 'initialize'])
+        ->middleware('admin')
+        ->name('app.initialize');
 
     Route::put('settings/password', [SecurityController::class, 'update'])
         ->middleware('throttle:6,1')
