@@ -9,6 +9,32 @@ use Inertia\Inertia;
 class MemberController extends Controller
 {
     /**
+     * Render the Member Detailed Profile Page
+     */
+    public function showView(Member $member)
+    {
+        $member->load([
+            'savings' => fn ($q) => $q->orderBy('transaction_date', 'desc')->take(10),
+            'loans.schedules' => fn ($q) => $q->orderBy('installment_number', 'asc'),
+            'loans.repayments' => fn ($q) => $q->orderBy('payment_date', 'desc'),
+        ]);
+
+        $summary = [
+            'total_pokok' => $member->savings()->where('type', 'pokok')->sum('amount'),
+            'total_wajib' => $member->savings()->where('type', 'wajib')->sum('amount'),
+            'total_sukarela' => $member->savings()->where('type', 'sukarela')->sum('amount'),
+            'grand_total_simpanan' => $member->savings()->sum('amount'),
+            'pinjaman_aktif' => $member->loans()->where('status', 'active')->count(),
+            'total_hutang' => $member->loans()->where('status', 'active')->get()->sum(fn ($loan) => $loan->remaining_amount),
+        ];
+
+        return Inertia::render('members/show', [
+            'member' => $member,
+            'summary' => $summary,
+        ]);
+    }
+
+    /**
      * Render the Members Inertia Page
      */
     public function indexView(Request $request)
@@ -20,9 +46,9 @@ class MemberController extends Controller
         // Pencarian Advanced
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('member_number', 'like', "%{$search}%");
+                    ->orWhere('member_number', 'like', "%{$search}%");
             });
         }
 
@@ -38,7 +64,7 @@ class MemberController extends Controller
 
         return Inertia::render('members/index', [
             'members' => $members,
-            'filters' => $request->only(['search', 'status', 'date'])
+            'filters' => $request->only(['search', 'status', 'date']),
         ]);
     }
 
@@ -69,6 +95,9 @@ class MemberController extends Controller
             'phone_number' => 'nullable|string',
             'join_date' => 'required|date',
             'status' => 'required|string|in:active,inactive',
+            'emergency_contact_name' => 'nullable|string|max:255',
+            'emergency_contact_phone' => 'nullable|string|max:20',
+            'notes' => 'nullable|string',
         ]);
 
         $member = Member::create($validatedData);
@@ -107,6 +136,9 @@ class MemberController extends Controller
             'phone_number' => 'nullable|string|max:20',
             'join_date' => 'required|date',
             'status' => 'required|string|in:active,inactive',
+            'emergency_contact_name' => 'nullable|string|max:255',
+            'emergency_contact_phone' => 'nullable|string|max:20',
+            'notes' => 'nullable|string',
         ]);
 
         $member->update($validatedData);
@@ -120,7 +152,7 @@ class MemberController extends Controller
     public function update(Request $request, Member $member)
     {
         $validatedData = $request->validate([
-            'member_number' => 'required|string|unique:members,member_number,' . $member->id,
+            'member_number' => 'required|string|unique:members,member_number,'.$member->id,
             'name' => 'required|string',
             'address' => 'required|string',
             'phone_number' => 'nullable|string',

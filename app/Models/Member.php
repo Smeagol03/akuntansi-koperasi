@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use Database\Factories\MemberFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Member extends Model
 {
-    /** @use HasFactory<\Database\Factories\MemberFactory> */
+    /** @use HasFactory<MemberFactory> */
     use HasFactory;
 
     /**
@@ -23,6 +25,10 @@ class Member extends Model
         'phone_number',
         'join_date',
         'status',
+        'profile_photo_path',
+        'notes',
+        'emergency_contact_name',
+        'emergency_contact_phone',
     ];
 
     /**
@@ -31,7 +37,7 @@ class Member extends Model
     protected static function booted(): void
     {
         static::creating(function (Member $member) {
-            if (!$member->member_number) {
+            if (! $member->member_number) {
                 $member->member_number = self::generateMemberNumber();
             }
         });
@@ -44,12 +50,12 @@ class Member extends Model
     {
         $year = date('Y');
         $prefix = "KMP-{$year}-";
-        
+
         $lastMember = self::where('member_number', 'like', "{$prefix}%")
             ->orderBy('member_number', 'desc')
             ->first();
 
-        if (!$lastMember) {
+        if (! $lastMember) {
             return "{$prefix}0001";
         }
 
@@ -60,11 +66,19 @@ class Member extends Model
     }
 
     /**
-     * Get the saving transactions for the member.
+     * Get the saving accounts for the member.
      */
-    public function savings(): HasMany
+    public function savingAccounts(): HasMany
     {
-        return $this->hasMany(SavingTransaction::class);
+        return $this->hasMany(SavingAccount::class);
+    }
+
+    /**
+     * Get all saving transactions for the member through accounts.
+     */
+    public function savings(): HasManyThrough
+    {
+        return $this->hasManyThrough(SavingTransaction::class, SavingAccount::class);
     }
 
     /**

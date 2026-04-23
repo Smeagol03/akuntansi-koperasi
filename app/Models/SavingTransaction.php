@@ -12,18 +12,22 @@ class SavingTransaction extends Model
     use HasFactory;
 
     protected $fillable = [
-        'member_id',
+        'saving_account_id',
         'amount',
-        'type',
         'description',
         'transaction_date',
     ];
 
+    protected $casts = [
+        'transaction_date' => 'date',
+        'amount' => 'decimal:2',
+    ];
+
     /**
-     * Get the member that owns the saving transaction.
+     * Get the account that owns the saving transaction.
      */
-    public function member(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Member::class);
+        return $this->belongsTo(SavingAccount::class, 'saving_account_id');
     }
 }

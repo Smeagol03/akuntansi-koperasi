@@ -3,7 +3,7 @@ import { dashboard, web_savings_index, web_savings_store, web_savings_withdraw }
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
-import { Plus, ArrowUpDown, Search, ArrowDownLeft } from 'lucide-react';
+import { Plus, ArrowUpDown, Search, ArrowDownLeft, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useState, useEffect } from 'react';
@@ -22,13 +22,15 @@ import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 
-interface SavingTransaction {
+interface SavingAccount {
     id: number;
     member_id: number;
-    amount: string;
+    account_number: string;
     type: string;
-    description: string | null;
-    transaction_date: string;
+    balance: string;
+    interest_rate: string;
+    opened_at: string;
+    status: string;
     member: {
         id: number;
         name: string;
@@ -37,8 +39,8 @@ interface SavingTransaction {
 }
 
 interface SavingsProps {
-    transactions: {
-        data: SavingTransaction[];
+    accounts: {
+        data: SavingAccount[];
         links: any[];
     };
     filters: {
@@ -47,7 +49,7 @@ interface SavingsProps {
     };
 }
 
-export default function SavingsIndex({ transactions, filters }: SavingsProps) {
+export default function SavingsIndex({ accounts, filters }: SavingsProps) {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
@@ -57,7 +59,7 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
     const { data, setData, post, processing, errors, reset } = useForm({
         member_number: '',
         amount: '',
-        type: 'wajib',
+        type: 'sukarela',
         description: '',
         transaction_date: new Date().toISOString().split('T')[0],
     });
@@ -73,7 +75,6 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
     } = useForm({
         member_number: '',
         amount: '',
-        type: 'sukarela',
         description: '',
         transaction_date: new Date().toISOString().split('T')[0],
     });
@@ -119,50 +120,55 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
         });
     };
 
-    const columns: ColumnDef<SavingTransaction>[] = [
+    const columns: ColumnDef<SavingAccount>[] = [
         {
-            accessorKey: 'transaction_date',
-            header: ({ column }) => (
-                <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')} className="-ml-4">
-                    Tanggal
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            ),
-            cell: ({ row }) => format(new Date(row.original.transaction_date), 'dd MMM yyyy', { locale: id }),
+            accessorKey: 'account_number',
+            header: 'No. Rekening',
+            cell: ({ row }) => <span className="font-mono text-xs font-medium uppercase">{row.original.account_number}</span>
         },
         {
             accessorKey: 'member.name',
             header: 'Anggota',
             cell: ({ row }) => (
                 <div>
-                    <div className="font-medium">{row.original.member.name}</div>
-                    <div className="text-xs text-muted-foreground font-mono">{row.original.member.member_number}</div>
+                    <div className="font-medium text-sm">{row.original.member.name}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">{row.original.member.member_number}</div>
                 </div>
             ),
         },
         {
             accessorKey: 'type',
-            header: 'Jenis Simpanan',
-            cell: ({ row }) => <span className="capitalize">{row.original.type}</span>,
+            header: 'Jenis',
+            cell: ({ row }) => <span className="capitalize text-xs font-medium">{row.original.type}</span>,
         },
         {
-            accessorKey: 'description',
-            header: 'Keterangan',
-            cell: ({ row }) => <span className="text-muted-foreground">{row.original.description || '-'}</span>,
-        },
-        {
-            accessorKey: 'amount',
-            header: () => <div className="text-right">Jumlah</div>,
+            accessorKey: 'balance',
+            header: () => <div className="text-right">Saldo Terkini</div>,
             cell: ({ row }) => {
-                const amount = parseFloat(row.original.amount);
-                const isWithdrawal = amount < 0;
+                const balance = parseFloat(row.original.balance);
                 return (
-                    <div className={`text-right font-medium ${isWithdrawal ? 'text-red-500' : 'text-primary'}`}>
-                        {isWithdrawal ? '-' : '+'}{formatCurrency(Math.abs(amount))}
+                    <div className="text-right font-bold text-primary">
+                        {formatCurrency(balance)}
                     </div>
                 );
             },
         },
+        {
+            accessorKey: 'interest_rate',
+            header: () => <div className="text-center">Bunga/Thn</div>,
+            cell: ({ row }) => <div className="text-center text-xs text-muted-foreground">{parseFloat(row.original.interest_rate)}%</div>,
+        },
+        {
+            accessorKey: 'status',
+            header: 'Status',
+            cell: ({ row }) => (
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    row.original.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                }`}>
+                    {row.original.status.toUpperCase()}
+                </span>
+            )
+        }
     ];
 
     return (
@@ -171,8 +177,11 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
             <div className="flex h-full flex-1 flex-col gap-6 p-4 md:p-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight">Riwayat Simpanan</h2>
-                        <p className="text-muted-foreground">Catat dan pantau seluruh transaksi simpanan anggota koperasi.</p>
+                        <div className="flex items-center gap-2">
+                            <Wallet className="h-6 w-6 text-primary" />
+                            <h2 className="text-2xl font-bold tracking-tight">Daftar Rekening Simpanan</h2>
+                        </div>
+                        <p className="text-muted-foreground">Monitoring saldo dan kelola mutasi rekening anggota.</p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -180,14 +189,14 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                         <Dialog open={isWithdrawModalOpen} onOpenChange={setIsWithdrawModalOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="outline">
-                                    <ArrowDownLeft className="mr-2 h-4 w-4" /> Tarik Simpanan
+                                    <ArrowDownLeft className="mr-2 h-4 w-4" /> Tarik
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[425px]">
                                 <DialogHeader>
                                     <DialogTitle>Penarikan Simpanan Sukarela</DialogTitle>
                                     <DialogDescription>
-                                        Catat penarikan simpanan sukarela anggota. Simpanan pokok &amp; wajib tidak dapat ditarik.
+                                        Catat penarikan simpanan sukarela anggota.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <form onSubmit={submitWithdraw} className="space-y-4 pt-4">
@@ -195,15 +204,11 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                                         <Label htmlFor="withdraw-member-number">Nomor Anggota *</Label>
                                         <Input
                                             id="withdraw-member-number"
-                                            type="text"
                                             value={withdrawData.member_number}
                                             onChange={(e) => setWithdrawData('member_number', e.target.value)}
                                             placeholder="KMP-2026-XXXX"
                                             required
                                         />
-                                        {withdrawErrors.member_number && (
-                                            <p className="text-xs text-destructive">{withdrawErrors.member_number}</p>
-                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="withdraw-amount">Jumlah Penarikan (Rp) *</Label>
@@ -212,10 +217,8 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                                             type="number"
                                             value={withdrawData.amount}
                                             onChange={(e) => setWithdrawData('amount', e.target.value)}
-                                            placeholder="100000"
                                             required
                                         />
-                                        {withdrawErrors.amount && <p className="text-xs text-destructive">{withdrawErrors.amount}</p>}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="withdraw-date">Tanggal Tarik *</Label>
@@ -226,25 +229,13 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                                             onChange={(e) => setWithdrawData('transaction_date', e.target.value)}
                                             required
                                         />
-                                        {withdrawErrors.transaction_date && (
-                                            <p className="text-xs text-destructive">{withdrawErrors.transaction_date}</p>
-                                        )}
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="withdraw-description">Keterangan</Label>
-                                        <Input
-                                            id="withdraw-description"
-                                            value={withdrawData.description}
-                                            onChange={(e) => setWithdrawData('description', e.target.value)}
-                                            placeholder="Opsional"
-                                        />
                                     </div>
                                     <div className="pt-4 flex justify-end gap-2">
                                         <Button type="button" variant="outline" onClick={() => setIsWithdrawModalOpen(false)}>
                                             Batal
                                         </Button>
                                         <Button type="submit" variant="destructive" disabled={withdrawProcessing}>
-                                            {withdrawProcessing ? 'Memproses...' : 'Proses Penarikan'}
+                                            Proses Penarikan
                                         </Button>
                                     </div>
                                 </form>
@@ -255,37 +246,36 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                         <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                             <DialogTrigger asChild>
                                 <Button>
-                                    <Plus className="mr-2 h-4 w-4" /> Catat Setoran
+                                    <Plus className="mr-2 h-4 w-4" /> Setoran Baru
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[425px]">
                                 <DialogHeader>
-                                    <DialogTitle>Catat Setoran Simpanan</DialogTitle>
-                                    <DialogDescription>Masukkan nomor anggota (misal: KMP-2026-0001) dan detail setoran.</DialogDescription>
+                                    <DialogTitle>Setoran Simpanan</DialogTitle>
+                                    <DialogDescription>Catat penambahan saldo pada rekening anggota.</DialogDescription>
                                 </DialogHeader>
                                 <form onSubmit={submitDeposit} className="space-y-4 pt-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="member_number">Nomor Anggota *</Label>
                                         <Input
                                             id="member_number"
-                                            type="text"
                                             value={data.member_number}
                                             onChange={(e) => setData('member_number', e.target.value)}
                                             placeholder="KMP-2026-XXXX"
                                             required
                                         />
-                                        {errors.member_number && <p className="text-xs text-destructive">{errors.member_number}</p>}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="type">Jenis Simpanan *</Label>
                                         <Select value={data.type} onValueChange={(val) => setData('type', val)}>
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Pilih jenis" />
+                                                <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="pokok">Pokok</SelectItem>
                                                 <SelectItem value="wajib">Wajib</SelectItem>
                                                 <SelectItem value="sukarela">Sukarela</SelectItem>
+                                                <SelectItem value="berjangka">Berjangka (Deposito)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -296,10 +286,8 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                                             type="number"
                                             value={data.amount}
                                             onChange={(e) => setData('amount', e.target.value)}
-                                            placeholder="100000"
                                             required
                                         />
-                                        {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="transaction_date">Tanggal Setor *</Label>
@@ -310,23 +298,13 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                                             onChange={(e) => setData('transaction_date', e.target.value)}
                                             required
                                         />
-                                        {errors.transaction_date && <p className="text-xs text-destructive">{errors.transaction_date}</p>}
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="description">Keterangan</Label>
-                                        <Input
-                                            id="description"
-                                            value={data.description}
-                                            onChange={(e) => setData('description', e.target.value)}
-                                            placeholder="Opsional"
-                                        />
                                     </div>
                                     <div className="pt-4 flex justify-end gap-2">
                                         <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
                                             Batal
                                         </Button>
                                         <Button type="submit" disabled={processing}>
-                                            {processing ? 'Menyimpan...' : 'Simpan Transaksi'}
+                                            Simpan Setoran
                                         </Button>
                                     </div>
                                 </form>
@@ -340,7 +318,7 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Cari nama atau nomor anggota..."
+                            placeholder="Cari nama anggota atau nomor rekening..."
                             className="pl-8"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -356,12 +334,13 @@ export default function SavingsIndex({ transactions, filters }: SavingsProps) {
                                 <SelectItem value="pokok">Pokok</SelectItem>
                                 <SelectItem value="wajib">Wajib</SelectItem>
                                 <SelectItem value="sukarela">Sukarela</SelectItem>
+                                <SelectItem value="berjangka">Berjangka</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                 </div>
 
-                <DataTable columns={columns} data={transactions.data} links={transactions.links} />
+                <DataTable columns={columns} data={accounts.data} links={accounts.links} />
             </div>
         </>
     );

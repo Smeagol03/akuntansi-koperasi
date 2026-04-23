@@ -1,19 +1,19 @@
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, Link } from '@inertiajs/react';
 import { dashboard, web_loans_index, web_loans_store, web_loans_update_status, web_loans_repay } from '@/routes';
 import { DataTable } from '@/components/ui/data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
-import { Plus, ArrowUpDown, CheckCircle, XCircle, CreditCard, Search, Receipt } from 'lucide-react';
+import { Plus, ArrowUpDown, CheckCircle, XCircle, CreditCard, Search, Receipt, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,12 +21,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Loan {
     id: number;
     member_id: number;
     amount: string;
     interest_rate: string;
+    interest_method: string;
+    penalty_rate: string;
     term_months: number;
     monthly_installment: string;
     status: string;
@@ -60,8 +63,10 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
     const { data, setData, post, processing, errors, reset } = useForm({
         member_number: '',
         amount: '',
-        interest_rate: '1',
-        term_months: '10',
+        interest_rate: '1.5',
+        interest_method: 'flat',
+        penalty_rate: '0.1',
+        term_months: '12',
         apply_date: new Date().toISOString().split('T')[0],
     });
 
@@ -107,7 +112,7 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
                 toast.success('Pengajuan pinjaman berhasil dibuat.');
             },
             onError: () => {
-                toast.error('Gagal mengajukan pinjaman. Pastikan nomor anggota terdaftar.');
+                toast.error('Gagal mengajukan pinjaman. Periksa form.');
             },
         });
     };
@@ -176,19 +181,20 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
             cell: ({ row }) => <div className="text-right font-medium">{formatCurrency(parseFloat(row.original.amount))}</div>,
         },
         {
-            accessorKey: 'term_months',
-            header: 'Tenor / Bunga',
+            accessorKey: 'interest_method',
+            header: 'Metode / Bunga',
             cell: ({ row }) => (
-                <span>
-                    {row.original.term_months} bln ({parseFloat(row.original.interest_rate)}%)
-                </span>
+                <div className="flex flex-col">
+                    <span className="capitalize text-sm font-medium">{row.original.interest_method}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase">{parseFloat(row.original.interest_rate)}% per bulan</span>
+                </div>
             ),
         },
         {
             accessorKey: 'monthly_installment',
             header: () => <div className="text-right">Angsuran/Bln</div>,
             cell: ({ row }) => (
-                <div className="text-right text-muted-foreground">{formatCurrency(parseFloat(row.original.monthly_installment))}</div>
+                <div className="text-right font-semibold text-primary">{formatCurrency(parseFloat(row.original.monthly_installment))}</div>
             ),
         },
         {
@@ -198,15 +204,14 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
                 const status = row.original.status;
                 return (
                     <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            status === 'active'
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${status === 'active'
                                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                                 : status === 'paid_off'
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                  : status === 'rejected'
-                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
-                        }`}
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                    : status === 'rejected'
+                                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                            }`}
                     >
                         {status === 'active' ? 'Berjalan' : status === 'paid_off' ? 'Lunas' : status === 'rejected' ? 'Ditolak' : 'Menunggu'}
                     </span>
@@ -255,7 +260,21 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
     const amountNum = parseFloat(data.amount) || 0;
     const termNum = parseInt(data.term_months) || 1;
     const interestNum = parseFloat(data.interest_rate) || 0;
-    const simInstallment = amountNum > 0 ? (amountNum / termNum) + (amountNum * (interestNum / 100)) : 0;
+
+    const calculateSimulatedInstallment = () => {
+        if (amountNum <= 0) return 0;
+
+        if (data.interest_method === 'flat') {
+            return (amountNum / termNum) + (amountNum * (interestNum / 100));
+        } else {
+            // Annuity (Effective)
+            const i = interestNum / 100;
+            if (i === 0) return amountNum / termNum;
+            return amountNum * (i * Math.pow(1 + i, termNum)) / (Math.pow(1 + i, termNum) - 1);
+        }
+    };
+
+    const simInstallment = calculateSimulatedInstallment();
 
     return (
         <>
@@ -264,7 +283,7 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-bold tracking-tight">Pengajuan &amp; Pinjaman</h2>
-                        <p className="text-muted-foreground">Kelola pengajuan pinjaman, persetujuan, dan jadwal angsuran.</p>
+                        <p className="text-muted-foreground">Kelola pengajuan pinjaman, persetujuan, dan metode bunga lanjutan.</p>
                     </div>
 
                     {/* Modal Ajukan Pinjaman */}
@@ -274,37 +293,78 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
                                 <Plus className="mr-2 h-4 w-4" /> Ajukan Pinjaman
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-[500px]">
+                        <DialogContent className="sm:max-w-[550px] max-h-[95vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>Form Pengajuan Pinjaman</DialogTitle>
-                                <DialogDescription>Masukkan nomor anggota dan detail pengajuan. Simulasi muncul otomatis.</DialogDescription>
+                                <DialogDescription>Pilih metode bunga dan tenor yang sesuai dengan profil risiko anggota.</DialogDescription>
                             </DialogHeader>
-                            <form onSubmit={submitLoan} className="space-y-4 pt-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="member_number">Nomor Anggota *</Label>
-                                    <Input
-                                        id="member_number"
-                                        type="text"
-                                        value={data.member_number}
-                                        onChange={(e) => setData('member_number', e.target.value)}
-                                        placeholder="KMP-2026-XXXX"
-                                        required
-                                    />
-                                    {errors.member_number && <p className="text-xs text-destructive">{errors.member_number}</p>}
+                            <form onSubmit={submitLoan} className="space-y-4 pt-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="member_number">Nomor Anggota *</Label>
+                                        <Input
+                                            id="member_number"
+                                            value={data.member_number}
+                                            onChange={(e) => setData('member_number', e.target.value)}
+                                            placeholder="KMP-2026-XXXX"
+                                            required
+                                        />
+                                        {errors.member_number && <p className="text-xs text-destructive">{errors.member_number}</p>}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="amount">Jumlah Pinjaman (Rp) *</Label>
+                                        <Input
+                                            id="amount"
+                                            type="number"
+                                            value={data.amount}
+                                            onChange={(e) => setData('amount', e.target.value)}
+                                            placeholder="1000000"
+                                            required
+                                        />
+                                        {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="amount">Jumlah Pinjaman (Rp) *</Label>
-                                    <Input
-                                        id="amount"
-                                        type="number"
-                                        value={data.amount}
-                                        onChange={(e) => setData('amount', e.target.value)}
-                                        placeholder="1000000"
-                                        required
-                                    />
-                                    {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="interest_method">Metode Bunga *</Label>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent className="max-w-[250px]">
+                                                        <p className="text-xs"><strong>Flat</strong>: Bunga dihitung dari pokok awal. <strong>Efektif</strong>: Bunga dihitung dari sisa pokok pinjaman (Metode Anuitas).</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </div>
+                                        <Select value={data.interest_method} onValueChange={(v) => setData('interest_method', v)}>
+                                            <SelectTrigger id="interest_method">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="flat">Bunga Flat (Tetap)</SelectItem>
+                                                <SelectItem value="effective">Bunga Menurun (Efektif)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="interest_rate">Suku Bunga (%) *</Label>
+                                        <Input
+                                            id="interest_rate"
+                                            type="number"
+                                            step="0.01"
+                                            value={data.interest_rate}
+                                            onChange={(e) => setData('interest_rate', e.target.value)}
+                                            required
+                                        />
+                                        {errors.interest_rate && <p className="text-xs text-destructive">{errors.interest_rate}</p>}
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="term_months">Tenor (Bulan) *</Label>
                                         <Input
@@ -317,18 +377,19 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
                                         {errors.term_months && <p className="text-xs text-destructive">{errors.term_months}</p>}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="interest_rate">Bunga Flat (%) *</Label>
+                                        <Label htmlFor="penalty_rate">Denda Harian (%) *</Label>
                                         <Input
-                                            id="interest_rate"
+                                            id="penalty_rate"
                                             type="number"
                                             step="0.01"
-                                            value={data.interest_rate}
-                                            onChange={(e) => setData('interest_rate', e.target.value)}
+                                            value={data.penalty_rate}
+                                            onChange={(e) => setData('penalty_rate', e.target.value)}
                                             required
                                         />
-                                        {errors.interest_rate && <p className="text-xs text-destructive">{errors.interest_rate}</p>}
+                                        {errors.penalty_rate && <p className="text-xs text-destructive">{errors.penalty_rate}</p>}
                                     </div>
                                 </div>
+
                                 <div className="space-y-2">
                                     <Label htmlFor="apply_date">Tanggal Pengajuan *</Label>
                                     <Input
@@ -341,17 +402,23 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
                                 </div>
 
                                 {/* Simulasi Box */}
-                                <div className="mt-4 rounded-lg bg-muted/50 p-4 border border-border">
-                                    <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                                        <Receipt className="h-4 w-4" /> Simulasi Angsuran
+                                <div className="mt-2 rounded-lg bg-primary/5 p-4 border border-primary/20">
+                                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2 text-primary">
+                                        <Receipt className="h-4 w-4" /> Hasil Simulasi ({data.interest_method.toUpperCase()})
                                     </h4>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-muted-foreground">Cicilan per bulan:</span>
-                                        <span className="font-bold text-primary">{formatCurrency(simInstallment)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm mt-1">
-                                        <span className="text-muted-foreground">Total yang dibayar:</span>
-                                        <span className="font-medium">{formatCurrency(simInstallment * termNum)}</span>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-muted-foreground">Cicilan per bulan:</span>
+                                            <span className="font-bold text-lg">{formatCurrency(simInstallment)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs pt-2 border-t border-primary/10">
+                                            <span className="text-muted-foreground">Total yang akan dibayar:</span>
+                                            <span className="font-medium">{formatCurrency(simInstallment * termNum)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+                                            <span>Total beban bunga:</span>
+                                            <span>{formatCurrency((simInstallment * termNum) - (parseFloat(data.amount) || 0))}</span>
+                                        </div>
                                     </div>
                                 </div>
 

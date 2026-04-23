@@ -17,6 +17,8 @@ class Loan extends Model
         'interest_rate',
         'term_months',
         'monthly_installment',
+        'interest_method',
+        'penalty_rate',
         'status',
         'apply_date',
         'approved_date',
@@ -30,6 +32,11 @@ class Loan extends Model
     public function repayments(): HasMany
     {
         return $this->hasMany(LoanRepayment::class);
+    }
+
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(LoanSchedule::class);
     }
 
     /**
@@ -46,6 +53,7 @@ class Loan extends Model
     public function getRemainingAmountAttribute()
     {
         $paid = $this->repayments()->sum('amount');
+
         return $this->total_to_pay - $paid;
     }
 }

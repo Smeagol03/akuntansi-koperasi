@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Member;
+use App\Models\LoanSchedule;
 use App\Models\SavingTransaction;
-use App\Models\Loan;
-use App\Models\LoanRepayment;
-use Illuminate\Http\Request;
+use App\Models\SavingAccount;
+use App\Models\CashAccount;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -29,7 +28,7 @@ class ReportController extends Controller
     }
 
     /**
-     * Render the Reports Inertia Page dengan rekap bulanan
+     * Render the Reports Inertia Page
      */
     public function reportView()
     {
@@ -72,32 +71,65 @@ class ReportController extends Controller
     private function getDashboardData()
     {
         // 1. Statistik Anggota
+        $memberStats = DB::table('members')
+            ->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive
+            ")->first();
+
         $members = [
-            'total' => Member::count(),
-            'active' => Member::where('status', 'active')->count(),
-            'inactive' => Member::where('status', 'inactive')->count(),
+            'total' => (int) $memberStats->total,
+            'active' => (int) $memberStats->active,
+            'inactive' => (int) $memberStats->inactive,
         ];
 
-        // 2. Statistik Simpanan
+        // 2. Statistik Simpanan (Dari Rekening)
+        $savingStats = DB::table('saving_accounts')
+            ->selectRaw("
+                SUM(CASE WHEN type = 'pokok' THEN balance ELSE 0 END) as total_pokok,
+                SUM(CASE WHEN type = 'wajib' THEN balance ELSE 0 END) as total_wajib,
+                SUM(CASE WHEN type = 'sukarela' THEN balance ELSE 0 END) as total_sukarela,
+                SUM(balance) as grand_total
+            ")->first();
+
+        $savingsBalance = (float) ($savingStats->grand_total ?? 0);
         $savings = [
-            'total_pokok' => SavingTransaction::where('type', 'pokok')->sum('amount'),
-            'total_wajib' => SavingTransaction::where('type', 'wajib')->sum('amount'),
-            'total_sukarela' => SavingTransaction::where('type', 'sukarela')->sum('amount'),
-            'grand_total' => SavingTransaction::sum('amount'),
+            'total_pokok' => (float) ($savingStats->total_pokok ?? 0),
+            'total_wajib' => (float) ($savingStats->total_wajib ?? 0),
+            'total_sukarela' => (float) ($savingStats->total_sukarela ?? 0),
+            'grand_total' => $savingsBalance,
         ];
 
         // 3. Statistik Pinjaman
+        $loanStats = DB::table('loans')
+            ->selectRaw("
+                SUM(CASE WHEN status IN ('active', 'paid_off') THEN amount ELSE 0 END) as total_disalurkan,
+                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as total_aktif,
+                SUM(CASE WHEN status = 'paid_off' THEN 1 ELSE 0 END) as total_lunas
+            ")->first();
+
+        $outstandingPrincipal = $this->calculateOutstandingPrincipal();
         $loans = [
-            'total_disalurkan' => Loan::whereIn('status', ['active', 'paid_off', 'approved'])->sum('amount'),
-            'total_aktif' => Loan::where('status', 'active')->count(),
-            'total_lunas' => Loan::where('status', 'paid_off')->count(),
-            'outstanding_principal' => $this->calculateOutstandingPrincipal(),
+            'total_disalurkan' => (float) ($loanStats->total_disalurkan ?? 0),
+            'total_aktif' => (int) ($loanStats->total_aktif ?? 0),
+            'total_lunas' => (int) ($loanStats->total_lunas ?? 0),
+            'outstanding_principal' => $outstandingPrincipal,
         ];
 
-        // 4. Perhitungan SHU (Dari Pendapatan Bunga)
-        // SHU didapat dari: Total Angsuran - Total Pokok yang dikembalikan
+        // 4. Perhitungan SHU
         $shu = [
             'total_pendapatan_bunga' => $this->calculateTotalInterestEarned(),
+        ];
+
+        // 5. Rasio Keuangan
+        $cashBalance = (float) CashAccount::sum('balance');
+        $overdueAmount = (float) LoanSchedule::overdue()->sum('total_due');
+        
+        $ratios = [
+            'cash_on_hand' => $cashBalance,
+            'npl' => $outstandingPrincipal > 0 ? round(($overdueAmount / $outstandingPrincipal) * 100, 2) : 0,
+            'liquidity' => $savingsBalance > 0 ? round(($cashBalance / $savingsBalance) * 100, 2) : 0,
         ];
 
         return [
@@ -105,45 +137,76 @@ class ReportController extends Controller
             'savings' => $savings,
             'loans' => $loans,
             'shu' => $shu,
-            'last_transactions' => SavingTransaction::with('member')->latest()->take(5)->get(),
+            'ratios' => $ratios,
+            'monthly_trends' => $this->getMonthlyTrends(),
+            'last_transactions' => SavingTransaction::with('account.member')->latest()->take(5)->get(),
+            'upcoming_installments' => LoanSchedule::with('loan.member')->upcoming(7)->get(),
+            'overdue_installments' => LoanSchedule::with('loan.member')->overdue()->get(),
         ];
     }
 
     /**
-     * Menghitung sisa pokok pinjaman yang belum dibayar di seluruh koperasi
+     * Get monthly trends for charts (last 6 months)
      */
-    private function calculateOutstandingPrincipal()
+    private function getMonthlyTrends()
     {
-        $totalLoanAmount = Loan::where('status', 'active')->sum(DB::raw('monthly_installment * term_months'));
-        $totalRepayments = LoanRepayment::whereHas('loan', function($q) {
-            $q->where('status', 'active');
-        })->sum('amount');
+        $sixMonthsAgo = now()->subMonths(5)->startOfMonth();
 
-        return $totalLoanAmount - $totalRepayments;
-    }
+        $savings = DB::table('saving_transactions')
+            ->selectRaw("strftime('%Y-%m', transaction_date) as month, SUM(amount) as total")
+            ->where('transaction_date', '>=', $sixMonthsAgo)
+            ->where('amount', '>', 0)
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->keyBy('month');
 
-    /**
-     * Menghitung pendapatan bunga yang sudah masuk (Laba)
-     */
-    private function calculateTotalInterestEarned()
-    {
-        // Untuk bunga flat, setiap pembayaran angsuran mengandung porsi bunga.
-        // Porsi Bunga = Pinjaman Pokok * Rate %
-        // Kita hitung dari semua repayment yang ada.
-        
-        $totalInterest = 0;
-        $repayments = LoanRepayment::with('loan')->get();
+        $loans = DB::table('loans')
+            ->selectRaw("strftime('%Y-%m', apply_date) as month, SUM(amount) as total")
+            ->where('apply_date', '>=', $sixMonthsAgo)
+            ->whereIn('status', ['active', 'paid_off'])
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->keyBy('month');
 
-        foreach ($repayments as $repayment) {
-            $loan = $repayment->loan;
-            $monthlyInterest = $loan->amount * ($loan->interest_rate / 100);
-            
-            // Karena ini bunga flat, kita asumsikan setiap angsuran membayar bunga secara proporsional
-            // Jika bayar full satu angsuran, maka dapet bunga full sebulan.
-            $proportion = $repayment->amount / $loan->monthly_installment;
-            $totalInterest += $monthlyInterest * $proportion;
+        $trends = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $month = now()->subMonths($i)->format('Y-m');
+            $trends[] = [
+                'month' => now()->subMonths($i)->translatedFormat('M Y'),
+                'savings' => (float) ($savings->get($month)->total ?? 0),
+                'loans' => (float) ($loans->get($month)->total ?? 0),
+            ];
         }
 
-        return round($totalInterest, 2);
+        return $trends;
+    }
+
+    private function calculateOutstandingPrincipal()
+    {
+        $result = DB::table('loans')
+            ->leftJoin('loan_repayments', 'loans.id', '=', 'loan_repayments.loan_id')
+            ->where('loans.status', 'active')
+            ->selectRaw('SUM(loans.monthly_installment * loans.term_months) - COALESCE(SUM(loan_repayments.amount), 0) as outstanding')
+            ->value('outstanding');
+
+        return (float) ($result ?? 0);
+    }
+
+    private function calculateTotalInterestEarned()
+    {
+        $result = DB::table('loan_repayments')
+            ->join('loans', 'loan_repayments.loan_id', '=', 'loans.id')
+            ->whereIn('loans.status', ['active', 'paid_off'])
+            ->selectRaw('
+                SUM(
+                    loan_repayments.amount / loans.monthly_installment
+                    * (loans.monthly_installment - (loans.amount / loans.term_months))
+                ) as total_interest
+            ')
+            ->value('total_interest');
+
+        return round((float) ($result ?? 0), 2);
     }
 }

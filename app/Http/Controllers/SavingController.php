@@ -3,25 +3,34 @@
 namespace App\Http\Controllers;
 
 use App\Models\Member;
+use App\Models\SavingAccount;
 use App\Models\SavingTransaction;
+use App\Services\SavingsService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class SavingController extends Controller
 {
+    public function __construct(
+        protected SavingsService $savingsService
+    ) {}
+
     /**
      * Render the Savings Inertia Page
      */
     public function indexView(Request $request)
     {
-        $query = SavingTransaction::with('member');
+        $query = SavingAccount::with('member');
 
-        // Pencarian Advanced
+        // Pencarian Advanced (berdasarkan nama anggota atau nomor rekening)
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('member', function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('member_number', 'like', "%{$search}%");
+            $query->where(function($q) use ($search) {
+                $q->where('account_number', 'like', "%{$search}%")
+                  ->orWhereHas('member', function($mq) use ($search) {
+                      $mq->where('name', 'like', "%{$search}%")
+                        ->orWhere('member_number', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -29,15 +38,11 @@ class SavingController extends Controller
             $query->where('type', $request->type);
         }
 
-        if ($request->filled('date')) {
-            $query->whereDate('transaction_date', $request->date);
-        }
-
-        $transactions = $query->orderBy('transaction_date', 'desc')->paginate(15)->withQueryString();
+        $accounts = $query->orderBy('created_at', 'desc')->paginate(15)->withQueryString();
 
         return Inertia::render('savings/index', [
-            'transactions' => $transactions,
-            'filters' => $request->only(['search', 'type', 'date'])
+            'accounts' => $accounts,
+            'filters' => $request->only(['search', 'type'])
         ]);
     }
 
@@ -48,46 +53,47 @@ class SavingController extends Controller
     {
         $validatedData = $request->validate([
             'member_number' => 'required|string|exists:members,member_number',
-            'amount' => 'required|numeric|min:0',
-            'type' => 'required|string|in:pokok,wajib,sukarela',
+            'amount' => 'required|numeric|min:0.01',
+            'type' => 'required|string|in:pokok,wajib,sukarela,berjangka',
             'description' => 'nullable|string',
             'transaction_date' => 'required|date',
         ]);
 
         $member = Member::where('member_number', $validatedData['member_number'])->firstOrFail();
 
-        $member->savings()->create([
-            'amount' => $validatedData['amount'],
-            'type' => $validatedData['type'],
-            'description' => $validatedData['description'],
-            'transaction_date' => $validatedData['transaction_date'],
-        ]);
+        $this->savingsService->deposit(
+            $member,
+            $validatedData['type'],
+            (float) $validatedData['amount'],
+            $validatedData['transaction_date'],
+            $validatedData['description']
+        );
 
         return redirect()->back();
     }
 
     /**
-     * Tarik simpanan sukarela dari Web form (amount negatif = penarikan)
+     * Tarik simpanan sukarela dari Web form
      */
     public function withdrawFromWeb(Request $request)
     {
         $validatedData = $request->validate([
             'member_number' => 'required|string|exists:members,member_number',
-            'amount' => 'required|numeric|min:1',
-            'type' => 'required|string|in:sukarela',
+            'amount' => 'required|numeric|min:0.01',
             'description' => 'nullable|string|max:255',
             'transaction_date' => 'required|date',
         ]);
 
         $member = Member::where('member_number', $validatedData['member_number'])->firstOrFail();
-
-        // Simpan sebagai nilai negatif untuk menandai penarikan
-        $member->savings()->create([
-            'amount' => -abs($validatedData['amount']),
-            'type' => $validatedData['type'],
-            'description' => $validatedData['description'] ?? 'Penarikan Simpanan',
-            'transaction_date' => $validatedData['transaction_date'],
-        ]);
+        
+        // Simpan sebagai nilai negatif melalui service
+        $this->savingsService->deposit(
+            $member,
+            'sukarela',
+            -(float) abs($validatedData['amount']),
+            $validatedData['transaction_date'],
+            $validatedData['description'] ?? 'Penarikan Simpanan'
+        );
 
         return redirect()->back();
     }
@@ -97,36 +103,19 @@ class SavingController extends Controller
      */
     public function index(Member $member)
     {
-        $transactions = $member->savings()->orderBy('transaction_date', 'desc')->get();
+        $accounts = $member->savingAccounts()->with('transactions')->get();
 
         $summary = [
-            'total_pokok' => $member->savings()->where('type', 'pokok')->sum('amount'),
-            'total_wajib' => $member->savings()->where('type', 'wajib')->sum('amount'),
-            'total_sukarela' => $member->savings()->where('type', 'sukarela')->sum('amount'),
-            'total_keseluruhan' => $member->savings()->sum('amount'),
+            'total_pokok' => $member->savingAccounts()->where('type', 'pokok')->sum('balance'),
+            'total_wajib' => $member->savingAccounts()->where('type', 'wajib')->sum('balance'),
+            'total_sukarela' => $member->savingAccounts()->where('type', 'sukarela')->sum('balance'),
+            'total_keseluruhan' => $member->savingAccounts()->sum('balance'),
         ];
 
         return response()->json([
             'member' => $member,
             'summary' => $summary,
-            'transactions' => $transactions,
+            'accounts' => $accounts,
         ]);
-    }
-
-    /**
-     * Store a newly created saving transaction in storage.
-     */
-    public function store(Request $request, Member $member)
-    {
-        $validatedData = $request->validate([
-            'amount' => 'required|numeric|min:0',
-            'type' => 'required|string|in:pokok,wajib,sukarela',
-            'description' => 'nullable|string',
-            'transaction_date' => 'required|date',
-        ]);
-
-        $transaction = $member->savings()->create($validatedData);
-
-        return response()->json($transaction, 201);
     }
 }

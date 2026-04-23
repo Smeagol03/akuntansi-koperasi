@@ -1,6 +1,19 @@
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, Users, Wallet, CreditCard, BarChart2 } from 'lucide-react';
+import { 
+    BookOpen, 
+    FolderGit2, 
+    LayoutGrid, 
+    Users, 
+    Wallet, 
+    CreditCard, 
+    CalendarClock, 
+    Landmark,
+    BookText,
+    History,
+    FilePieChart
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
+import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import {
@@ -12,7 +25,17 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard, web_members_index, web_savings_index, web_loans_index, web_reports_index } from '@/routes';
+import { 
+    dashboard, 
+    web_members_index, 
+    web_savings_index, 
+    web_loans_index, 
+    web_loans_schedules, 
+    web_cash_index,
+    web_accounting_journals,
+    web_accounting_ledger,
+    web_accounting_reports
+} from '@/routes';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -37,20 +60,56 @@ const mainNavItems: NavItem[] = [
         icon: CreditCard,
     },
     {
-        title: 'Laporan',
-        href: web_reports_index(),
-        icon: BarChart2,
+        title: 'Jadwal Angsuran',
+        href: web_loans_schedules(),
+        icon: CalendarClock,
+    },
+    {
+        title: 'Kas & Bank',
+        href: web_cash_index(),
+        icon: Landmark,
     },
 ];
 
-export function AppSidebar() {
+const accountingNavItems: NavItem[] = [
+    {
+        title: 'Jurnal Umum',
+        href: web_accounting_journals(),
+        icon: BookText,
+    },
+    {
+        title: 'Buku Besar',
+        href: web_accounting_ledger(),
+        icon: History,
+    },
+    {
+        title: 'Laporan Keuangan',
+        href: web_accounting_reports(),
+        icon: FilePieChart,
+    },
+];
+
+const footerNavItems: NavItem[] = [
+    {
+        title: 'Repository',
+        href: 'https://github.com/laravel/react-starter-kit',
+        icon: FolderGit2,
+    },
+    {
+        title: 'Documentation',
+        href: 'https://laravel.com/docs/breadcrumbs',
+        icon: BookOpen,
+    },
+];
+
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
-        <Sidebar collapsible="icon" variant="inset">
+        <Sidebar variant="inset" {...props} collapsible="icon">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
+                            <Link href={dashboard()}>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -59,10 +118,12 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={mainNavItems} label="Platform" />
+                <NavMain items={accountingNavItems} label="Akuntansi" />
             </SidebarContent>
 
             <SidebarFooter>
+                <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>
         </Sidebar>
