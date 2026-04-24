@@ -1,108 +1,134 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage, router } from '@inertiajs/react';
 import { dashboard, login, register } from '@/routes';
-import { Users, Wallet, CreditCard, BarChart2, ShieldCheck, Zap, ArrowRight, CheckCircle } from 'lucide-react';
+import { Users, Wallet, CreditCard, BarChart2, ShieldCheck, Zap, ArrowRight, CheckCircle, Scale, Landmark, FileText, LogOut, Clock } from 'lucide-react';
 
 export default function Welcome({ canRegister = true }: { canRegister?: boolean }) {
-    const { auth } = usePage().props;
+    const { auth, flash } = usePage<{ auth: any, flash: { error?: string, message?: string } }>().props;
+
+    const handleLogout = () => {
+        router.post('/logout');
+    };
+
+    const isAdmin = auth.user?.role === 'admin';
 
     const features = [
         {
             icon: Users,
             title: 'Manajemen Anggota',
-            description: 'Kelola data seluruh anggota koperasi dengan nomor ID otomatis, riwayat transaksi lengkap, dan filter pencarian canggih.',
-            color: 'text-blue-500',
-            bg: 'bg-blue-500/10',
+            description: 'Sistem pendataan anggota koperasi yang terintegrasi dengan penomoran otomatis dan validasi data yang ketat.',
+            color: 'text-red-700',
+            bg: 'bg-red-50',
         },
         {
-            icon: Wallet,
-            title: 'Simpanan Lengkap',
-            description: 'Catat simpanan pokok, wajib, dan sukarela. Dukungan penuh untuk setoran dan penarikan dengan rekap per anggota.',
-            color: 'text-emerald-500',
-            bg: 'bg-emerald-500/10',
+            icon: Landmark,
+            title: 'Simpanan Kolektif',
+            description: 'Pengelolaan simpanan pokok, wajib, dan sukarela secara transparan dengan audit log untuk setiap transaksi.',
+            color: 'text-red-700',
+            bg: 'bg-red-50',
         },
         {
-            icon: CreditCard,
-            title: 'Manajemen Pinjaman',
-            description: 'Proses pengajuan pinjaman, persetujuan, perhitungan bunga flat otomatis, dan pencatatan angsuran yang akurat.',
-            color: 'text-orange-500',
-            bg: 'bg-orange-500/10',
+            icon: Scale,
+            title: 'Kredit & Pinjaman',
+            description: 'Verifikasi pengajuan pinjaman dengan kalkulasi bunga flat yang presisi dan jadwal angsuran yang mengikat.',
+            color: 'text-red-700',
+            bg: 'bg-red-50',
         },
         {
-            icon: BarChart2,
-            title: 'Laporan Keuangan',
-            description: 'Pantau kesehatan keuangan koperasi dengan rekap bulanan simpanan, pinjaman, SHU, dan piutang beredar.',
-            color: 'text-purple-500',
-            bg: 'bg-purple-500/10',
+            icon: FileText,
+            title: 'Pelaporan Resmi',
+            description: 'Hasilkan Laporan Sisa Hasil Usaha (SHU) dan neraca keuangan yang sesuai dengan standar akuntansi koperasi.',
+            color: 'text-red-700',
+            bg: 'bg-red-50',
         },
         {
             icon: ShieldCheck,
-            title: 'Keamanan Terjamin',
-            description: 'Akses hanya untuk pengurus yang berwenang. Didukung autentikasi dua faktor (2FA) untuk keamanan ekstra.',
-            color: 'text-red-500',
-            bg: 'bg-red-500/10',
+            title: 'Otoritas & Keamanan',
+            description: 'Protokol keamanan berlapis dengan autentikasi dua faktor untuk melindungi data finansial anggota.',
+            color: 'text-red-700',
+            bg: 'bg-red-50',
         },
         {
-            icon: Zap,
-            title: 'Cepat & Responsif',
-            description: 'Dibangun dengan teknologi modern (Laravel + React) untuk pengalaman yang cepat, mulus, dan nyaman di semua perangkat.',
-            color: 'text-yellow-500',
-            bg: 'bg-yellow-500/10',
+            icon: BarChart2,
+            title: 'Analisis Pertumbuhan',
+            description: 'Dashboard eksekutif untuk memantau likuiditas, piutang, dan kesehatan finansial koperasi secara real-time.',
+            color: 'text-red-700',
+            bg: 'bg-red-50',
         },
     ];
 
     const highlights = [
-        'Nomor anggota otomatis (KMP-YYYY-XXXX)',
-        'Simulasi angsuran pinjaman real-time',
-        'Laporan rekap 12 bulan terakhir',
-        'Dukungan dark mode & light mode',
-        'Dashboard KPI lengkap sekilas pandang',
-        'Perhitungan SHU dari pendapatan bunga',
+        'ID Anggota Standar Nasional',
+        'Audit Trail Transaksi',
+        'Kalkulasi SHU Otomatis',
+        'Keamanan Data Terenkripsi',
+        'Laporan Neraca Standar PSAK',
+        'Manajemen Aset Real-time',
     ];
 
     return (
         <>
-            <Head title="KoperasiKu — Sistem Akuntansi Koperasi Digital">
+            <Head title="Koperasi Merah Putih — Sistem Informasi Akuntansi Terpadu">
                 <meta
                     name="description"
-                    content="Sistem akuntansi koperasi digital yang lengkap. Kelola anggota, simpanan, pinjaman, dan laporan keuangan dalam satu platform yang mudah digunakan."
+                    content="Sistem akuntansi koperasi profesional untuk Koperasi Merah Putih. Kelola anggota, simpanan, dan pinjaman dengan standar akuntansi yang ketat."
                 />
             </Head>
 
-            <div className="min-h-screen bg-background text-foreground">
+            <div className="min-h-screen bg-white text-slate-900 font-sans">
                 {/* Navbar */}
-                <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-md">
-                    <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+                <header className="fixed top-0 left-0 right-0 z-50 border-b-2 border-red-700 bg-white shadow-sm">
+                    <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
                         {/* Logo */}
-                        <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                                <Wallet className="h-4 w-4 text-primary-foreground" />
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center bg-red-700 rounded-none">
+                                <Landmark className="h-6 w-6 text-white" />
                             </div>
-                            <span className="text-lg font-bold">KoperasiKu</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xl font-black tracking-tighter uppercase text-red-700">Koperasi</span>
+                                <span className="text-xl font-black tracking-tighter uppercase text-slate-900">Merah Putih</span>
+                            </div>
                         </div>
 
                         {/* CTA Buttons */}
-                        <nav className="flex items-center gap-3">
+                        <nav className="flex items-center gap-4">
                             {auth.user ? (
-                                <Link
-                                    href={dashboard()}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                                >
-                                    Dashboard <ArrowRight className="h-4 w-4" />
-                                </Link>
+                                <div className="flex items-center gap-4">
+                                    {isAdmin ? (
+                                        <Link
+                                            href={dashboard()}
+                                            className="inline-flex items-center gap-2 bg-red-700 px-6 py-2.5 text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-red-800 rounded-none"
+                                        >
+                                            Dashboard <ArrowRight className="h-4 w-4" />
+                                        </Link>
+                                    ) : (
+                                        <div className="flex items-center gap-3 bg-slate-100 px-4 py-2 border border-slate-200">
+                                            <Clock className="h-4 w-4 text-orange-600" />
+                                            <span className="text-xs font-black uppercase tracking-tighter text-slate-600">
+                                                Menunggu Verifikasi
+                                            </span>
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={handleLogout}
+                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold uppercase tracking-widest text-slate-600 transition-colors hover:text-red-700 cursor-pointer"
+                                    >
+                                        Keluar <LogOut className="h-4 w-4" />
+                                    </button>
+                                </div>
                             ) : (
                                 <>
                                     <Link
                                         href={login()}
-                                        className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                                        className="px-4 py-2 text-sm font-bold uppercase tracking-widest text-slate-600 transition-colors hover:text-red-700"
                                     >
                                         Masuk
                                     </Link>
                                     {canRegister && (
                                         <Link
                                             href={register()}
-                                            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                                            className="inline-flex items-center gap-2 bg-red-700 px-6 py-2.5 text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-red-800 rounded-none border-2 border-red-700"
                                         >
-                                            Mulai Gratis
+                                            Registrasi
                                         </Link>
                                     )}
                                 </>
@@ -111,92 +137,125 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                     </div>
                 </header>
 
+                {flash.error && (
+                    <div className="fixed top-24 left-1/2 z-60 -translate-x-1/2 w-full max-w-xl px-6">
+                        <div className="bg-red-50 border-2 border-red-700 p-4 flex items-center gap-3 text-red-700 shadow-[8px_8px_0px_0px_rgba(185,28,28,0.1)]">
+                            <ShieldCheck className="h-5 w-5 shrink-0" />
+                            <p className="text-sm font-black uppercase tracking-tighter">{flash.error}</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Hero Section */}
-                <section className="flex min-h-screen flex-col items-center justify-center px-4 pt-16 text-center">
-                    {/* Badge */}
-                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary">
-                        <Zap className="h-3 w-3" />
-                        Sistem Akuntansi Koperasi Digital
+                <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-slate-50 px-6 py-32">
+                    <div className="absolute inset-0 z-0 opacity-5">
+                        <div className="absolute top-0 left-0 h-full w-full bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-size-[24px_24px]"></div>
                     </div>
 
-                    {/* Headline */}
-                    <h1 className="mb-6 max-w-4xl text-5xl font-bold leading-tight tracking-tight md:text-6xl lg:text-7xl">
-                        Kelola Koperasi{' '}
-                        <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">
-                            Lebih Mudah
-                        </span>{' '}
-                        &amp; Lebih Cerdas
-                    </h1>
+                    <div className="relative z-10 flex flex-col items-center text-center">
+                        {/* Badge */}
+                        <div className="mb-8 inline-flex items-center gap-2 border-2 border-red-700 bg-white px-5 py-2 text-sm font-black uppercase tracking-[0.2em] text-red-700 rounded-none">
+                            Official Platform
+                        </div>
 
-                    {/* Subtitle */}
-                    <p className="mb-10 max-w-2xl text-lg text-muted-foreground leading-relaxed">
-                        Platform akuntansi koperasi digital yang memudahkan pengurus mengelola anggota, simpanan, pinjaman, dan laporan
-                        keuangan dalam satu dashboard yang intuitif.
-                    </p>
+                        {/* Headline */}
+                        <h1 className="mb-8 max-w-5xl text-6xl font-black leading-tight tracking-tighter text-slate-900 md:text-7xl lg:text-8xl uppercase italic">
+                            Integritas <span className="text-red-700">Finansial</span><br />
+                            <span className="bg-red-700 px-4 text-white not-italic">Koperasi Indonesia</span>
+                        </h1>
 
-                    {/* CTA Buttons */}
-                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                        {auth.user ? (
-                            <Link
-                                href={dashboard()}
-                                className="inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/30"
-                            >
-                                Buka Dashboard <ArrowRight className="h-5 w-5" />
-                            </Link>
-                        ) : (
-                            <>
-                                {canRegister && (
+                        {/* Subtitle */}
+                        <p className="mb-12 max-w-3xl text-xl font-medium leading-relaxed text-slate-600">
+                            Transformasi digital Koperasi Merah Putih dengan sistem akuntansi terstandarisasi, transparan, dan akuntabel untuk kesejahteraan bersama.
+                        </p>
+
+                        {/* CTA Buttons */}
+                        <div className="flex flex-col gap-4 sm:flex-row">
+                            {auth.user ? (
+                                isAdmin ? (
                                     <Link
-                                        href={register()}
-                                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/30"
+                                        href={dashboard()}
+                                        className="inline-flex items-center justify-center gap-3 bg-red-700 px-10 py-5 text-lg font-black uppercase tracking-widest text-white shadow-[8px_8px_0px_0px_rgba(185,28,28,0.2)] transition-all hover:translate-x-1 hover:translate-y-1 hover:shadow-none rounded-none"
                                     >
-                                        Mulai Sekarang <ArrowRight className="h-5 w-5" />
+                                        Masuk ke Panel Kontrol <ArrowRight className="h-6 w-6" />
                                     </Link>
-                                )}
-                                <Link
-                                    href={login()}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-8 py-3.5 text-base font-semibold text-foreground transition-colors hover:bg-muted"
-                                >
-                                    Masuk ke Akun
-                                </Link>
-                            </>
-                        )}
-                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center gap-6">
+                                        <div className="border-4 border-orange-500 bg-white p-8 shadow-[12px_12px_0px_0px_rgba(249,115,22,0.1)] rounded-none">
+                                            <div className="mb-4 flex justify-center text-orange-500">
+                                                <ShieldCheck className="h-12 w-12" />
+                                            </div>
+                                            <h3 className="mb-2 text-2xl font-black uppercase tracking-tighter text-slate-900">Akses Terbatas</h3>
+                                            <p className="max-w-md text-lg font-medium text-slate-600">
+                                                Akun Anda telah terdaftar namun memerlukan verifikasi dari pengurus pusat sebelum dapat mengakses dashboard keuangan.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={handleLogout}
+                                            className="inline-flex items-center justify-center gap-3 border-4 border-slate-900 bg-white px-10 py-5 text-lg font-black uppercase tracking-widest text-slate-900 transition-all hover:bg-slate-900 hover:text-white rounded-none cursor-pointer"
+                                        >
+                                            Keluar dari Sesi <LogOut className="h-6 w-6" />
+                                        </button>
+                                    </div>
+                                )
+                            ) : (
+                                <>
+                                    {canRegister && (
+                                        <Link
+                                            href={register()}
+                                            className="inline-flex items-center justify-center gap-3 bg-red-700 px-10 py-5 text-lg font-black uppercase tracking-widest text-white shadow-[8px_8px_0px_0px_rgba(185,28,28,0.2)] transition-all hover:translate-x-1 hover:translate-y-1 hover:shadow-none rounded-none"
+                                        >
+                                            Mulai Sekarang <ArrowRight className="h-6 w-6" />
+                                        </Link>
+                                    )}
+                                    <Link
+                                        href={login()}
+                                        className="inline-flex items-center justify-center gap-3 border-4 border-slate-900 bg-white px-10 py-5 text-lg font-black uppercase tracking-widest text-slate-900 transition-all hover:bg-slate-900 hover:text-white rounded-none"
+                                    >
+                                        Akses Akun
+                                    </Link>
+                                </>
+                            )}
+                        </div>
 
-                    {/* Highlight List */}
-                    <div className="mt-14 flex flex-wrap justify-center gap-3">
-                        {highlights.map((item) => (
-                            <div key={item} className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground">
-                                <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />
-                                {item}
-                            </div>
-                        ))}
+                        {/* Highlight List */}
+                        <div className="mt-20 grid grid-cols-2 gap-x-12 gap-y-4 md:grid-cols-3">
+                            {highlights.map((item) => (
+                                <div key={item} className="flex items-center gap-3 text-left font-bold uppercase tracking-tighter text-slate-500">
+                                    <CheckCircle className="h-5 w-5 text-red-700 shrink-0" />
+                                    <span className="text-sm">{item}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </section>
 
                 {/* Features Section */}
-                <section className="px-4 py-24 sm:px-6">
-                    <div className="mx-auto max-w-6xl">
-                        <div className="mb-16 text-center">
-                            <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-                                Semua yang Koperasi Butuhkan
-                            </h2>
-                            <p className="mx-auto max-w-2xl text-muted-foreground">
-                                Dari pendaftaran anggota hingga laporan SHU, semua fitur dirancang khusus untuk kebutuhan operasional koperasi simpan pinjam.
+                <section className="border-y-4 border-slate-900 bg-white px-6 py-32">
+                    <div className="mx-auto max-w-7xl">
+                        <div className="mb-20 flex flex-col items-start md:flex-row md:items-end md:justify-between">
+                            <div className="max-w-2xl">
+                                <h2 className="mb-6 text-4xl font-black uppercase tracking-tighter text-slate-900 md:text-5xl lg:text-6xl italic">
+                                    Pilar Utama <span className="text-red-700">Operasional</span>
+                                </h2>
+                                <div className="h-2 w-24 bg-red-700"></div>
+                            </div>
+                            <p className="mt-8 max-w-md text-lg font-medium text-slate-600 md:mt-0">
+                                Setiap fitur dirancang untuk memenuhi regulasi perkoperasian nasional dengan sistem keamanan data perbankan.
                             </p>
                         </div>
 
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        <div className="grid gap-px bg-slate-200 border border-slate-200 lg:grid-cols-3">
                             {features.map((feature) => (
                                 <div
                                     key={feature.title}
-                                    className="group rounded-2xl border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+                                    className="group bg-white p-10 transition-all hover:z-10 hover:outline hover:outline-red-700"
                                 >
-                                    <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl ${feature.bg}`}>
-                                        <feature.icon className={`h-6 w-6 ${feature.color}`} />
+                                    <div className={`mb-8 inline-flex h-16 w-16 items-center justify-center border-2 border-red-700 bg-white rounded-none`}>
+                                        <feature.icon className={`h-8 w-8 text-red-700`} />
                                     </div>
-                                    <h3 className="mb-2 text-lg font-semibold">{feature.title}</h3>
-                                    <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                                    <h3 className="mb-4 text-2xl font-black uppercase tracking-tighter text-slate-900">{feature.title}</h3>
+                                    <p className="text-lg font-medium leading-relaxed text-slate-600">{feature.description}</p>
                                 </div>
                             ))}
                         </div>
@@ -204,45 +263,54 @@ export default function Welcome({ canRegister = true }: { canRegister?: boolean 
                 </section>
 
                 {/* CTA Banner */}
-                <section className="px-4 pb-24 sm:px-6">
-                    <div className="mx-auto max-w-4xl rounded-3xl bg-gradient-to-br from-primary/20 via-primary/10 to-emerald-500/10 border border-primary/20 p-12 text-center">
-                        <h2 className="mb-4 text-3xl font-bold tracking-tight">
-                            Siap Digitalisasi Koperasi Anda?
+                <section className="bg-red-700 px-6 py-24 text-white">
+                    <div className="mx-auto max-w-5xl text-center">
+                        <h2 className="mb-8 text-5xl font-black uppercase tracking-tighter italic md:text-7xl">
+                            Gabung Dalam Ekosistem<br />Koperasi Digital
                         </h2>
-                        <p className="mb-8 text-muted-foreground">
-                            Bergabunglah dan mulai kelola keuangan koperasi dengan lebih efisien, transparan, dan akurat.
+                        <p className="mb-12 text-xl font-bold uppercase tracking-widest text-red-100 opacity-80">
+                            Wujudkan kemandirian ekonomi dengan transparansi teknologi.
                         </p>
-                        {auth.user ? (
-                            <Link
-                                href={dashboard()}
-                                className="inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90"
-                            >
-                                Buka Dashboard <ArrowRight className="h-5 w-5" />
-                            </Link>
-                        ) : (
-                            canRegister && (
+                        <div className="flex flex-col justify-center gap-6 sm:flex-row">
+                            {auth.user ? (
                                 <Link
-                                    href={register()}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90"
+                                    href={dashboard()}
+                                    className="inline-flex items-center justify-center gap-3 bg-white px-12 py-5 text-xl font-black uppercase tracking-widest text-red-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)] transition-all hover:translate-x-1 hover:translate-y-1 hover:shadow-none rounded-none"
                                 >
-                                    Daftar Sekarang — Gratis <ArrowRight className="h-5 w-5" />
+                                    Panel Dashboard <ArrowRight className="h-6 w-6" />
                                 </Link>
-                            )
-                        )}
+                            ) : (
+                                canRegister && (
+                                    <Link
+                                        href={register()}
+                                        className="inline-flex items-center justify-center gap-3 bg-white px-12 py-5 text-xl font-black uppercase tracking-widest text-red-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)] transition-all hover:translate-x-1 hover:translate-y-1 hover:shadow-none rounded-none"
+                                    >
+                                        Registrasi Sekarang <ArrowRight className="h-6 w-6" />
+                                    </Link>
+                                )
+                            )}
+                        </div>
                     </div>
                 </section>
 
                 {/* Footer */}
-                <footer className="border-t border-border px-4 py-8 text-center sm:px-6">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary">
-                            <Wallet className="h-3 w-3 text-primary-foreground" />
+                <footer className="border-t-4 border-slate-900 bg-white px-6 py-16">
+                    <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-8 md:flex-row">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center bg-red-700 rounded-none">
+                                <Landmark className="h-5 w-5 text-white" />
+                            </div>
+                            <span className="text-lg font-black uppercase tracking-tighter">Koperasi Merah Putih</span>
                         </div>
-                        <span className="font-semibold">KoperasiKu</span>
+                        <div className="text-center md:text-right">
+                            <p className="text-sm font-bold uppercase tracking-widest text-slate-500">
+                                © 2026 Koperasi Merah Putih. Hak Cipta Dilindungi Undang-Undang.
+                            </p>
+                            <p className="mt-1 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">
+                                Built with Laravel & React · Standardized Financial System
+                            </p>
+                        </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                        Sistem Akuntansi Koperasi Digital · Dibangun dengan Laravel &amp; React
-                    </p>
                 </footer>
             </div>
         </>

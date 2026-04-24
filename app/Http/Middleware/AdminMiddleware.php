@@ -21,6 +21,6 @@ class AdminMiddleware
             return response()->json(['message' => 'Forbidden: Akses hanya untuk Pengurus.'], 403);
         }
 
-        abort(403, 'Akses hanya untuk Pengurus Koperasi.');
+        return redirect()->route('home')->with('error', 'Akses Terbatas: Akun Anda sedang dalam proses verifikasi oleh pengurus.');
     }
 }
