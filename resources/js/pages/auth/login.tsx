@@ -29,13 +29,18 @@ export default function Login({
             <Form
                 {...store.form()}
                 resetOnSuccess={['password']}
-                className="flex flex-col gap-6"
+                className="flex flex-col gap-10"
             >
                 {({ processing, errors }) => (
                     <>
-                        <div className="grid gap-6">
-                            <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
+                        <div className="grid gap-8">
+                            <div className="grid gap-3">
+                                <Label 
+                                    htmlFor="email" 
+                                    className="text-[11px] font-bold uppercase tracking-[0.2em] text-black dark:text-white"
+                                >
+                                    Alamat Email
+                                </Label>
                                 <Input
                                     id="email"
                                     type="email"
@@ -44,21 +49,27 @@ export default function Login({
                                     autoFocus
                                     tabIndex={1}
                                     autoComplete="email"
-                                    placeholder="email@example.com"
+                                    placeholder="nama@email.com"
+                                    className="h-14 px-4 rounded-none bg-white dark:bg-black border-[2px] border-black dark:border-white focus:ring-0 focus:border-[#D80027] dark:focus:border-[#D80027] transition-none text-lg font-medium"
                                 />
                                 <InputError message={errors.email} />
                             </div>
 
-                            <div className="grid gap-2">
+                            <div className="grid gap-3">
                                 <div className="flex items-center">
-                                    <Label htmlFor="password">Password</Label>
+                                    <Label 
+                                        htmlFor="password" 
+                                        className="text-[11px] font-bold uppercase tracking-[0.2em] text-black dark:text-white"
+                                    >
+                                        Kata Sandi
+                                    </Label>
                                     {canResetPassword && (
                                         <TextLink
                                             href={request()}
-                                            className="ml-auto text-sm"
+                                            className="ml-auto text-[10px] font-bold uppercase tracking-[0.1em] text-[#D80027] underline underline-offset-4 decoration-1"
                                             tabIndex={5}
                                         >
-                                            Forgot password?
+                                            Lupa?
                                         </TextLink>
                                     )}
                                 </div>
@@ -68,7 +79,8 @@ export default function Login({
                                     required
                                     tabIndex={2}
                                     autoComplete="current-password"
-                                    placeholder="Password"
+                                    placeholder="••••••••"
+                                    className="h-14 px-4 rounded-none bg-white dark:bg-black border-[2px] border-black dark:border-white focus:ring-0 focus:border-[#D80027] dark:focus:border-[#D80027] transition-none text-lg font-medium"
                                 />
                                 <InputError message={errors.password} />
                             </div>
@@ -78,27 +90,36 @@ export default function Login({
                                     id="remember"
                                     name="remember"
                                     tabIndex={3}
+                                    className="size-5 rounded-none border-[2px] border-black dark:border-white data-[state=checked]:bg-[#D80027] data-[state=checked]:border-[#D80027]"
                                 />
-                                <Label htmlFor="remember">Remember me</Label>
+                                <Label 
+                                    htmlFor="remember" 
+                                    className="text-sm font-bold uppercase tracking-tight text-black dark:text-white cursor-pointer select-none"
+                                >
+                                    Ingat Pilihan
+                                </Label>
                             </div>
 
                             <Button
                                 type="submit"
-                                className="mt-4 w-full"
+                                className="mt-4 h-16 w-full rounded-none bg-black dark:bg-white text-white dark:text-black font-black uppercase tracking-widest text-xl hover:bg-[#D80027] dark:hover:bg-[#D80027] hover:text-white transition-none active:translate-x-1 active:translate-y-1"
                                 tabIndex={4}
                                 disabled={processing}
                                 data-test="login-button"
                             >
-                                {processing && <Spinner />}
-                                Log in
+                                {processing ? <Spinner className="size-6 border-white" /> : 'Masuk ke Sistem'}
                             </Button>
                         </div>
 
                         {canRegister && (
-                            <div className="text-center text-sm text-muted-foreground">
-                                Don't have an account?{' '}
-                                <TextLink href={register()} tabIndex={5}>
-                                    Sign up
+                            <div className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                                Belum memiliki akun?{' '}
+                                <TextLink 
+                                    href={register()} 
+                                    tabIndex={5}
+                                    className="text-black dark:text-white hover:text-[#D80027] transition-none underline underline-offset-4 decoration-2"
+                                >
+                                    Daftar Akun
                                 </TextLink>
                             </div>
                         )}
@@ -107,7 +128,7 @@ export default function Login({
             </Form>
 
             {status && (
-                <div className="mb-4 text-center text-sm font-medium text-green-600">
+                <div className="mt-8 p-4 border-[2px] border-[#D80027] text-center text-xs font-bold uppercase tracking-widest text-[#D80027] animate-in fade-in">
                     {status}
                 </div>
             )}
@@ -116,6 +137,6 @@ export default function Login({
 }
 
 Login.layout = {
-    title: 'Log in to your account',
-    description: 'Enter your email and password below to log in',
+    title: 'Login Pengguna',
+    description: 'Masukkan kredensial Anda untuk akses sistem yang aman',
 };

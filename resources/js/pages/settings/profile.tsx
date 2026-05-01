@@ -1,56 +1,47 @@
 import { Form, Head, Link, usePage } from '@inertiajs/react';
-import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import DeleteUser from '@/components/delete-user';
-import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { edit } from '@/routes/profile';
+import { Spinner } from '@/components/ui/spinner';
+import { Transition } from '@headlessui/react';
+import { update } from '@/routes/profile';
 import { send } from '@/routes/verification';
+import type { PageProps } from '@/types';
 
-export default function Profile({
-    mustVerifyEmail,
-    status,
-}: {
-    mustVerifyEmail: boolean;
-    status?: string;
-}) {
-    const { auth } = usePage().props;
+export default function Profile() {
+    const { auth, mustVerifyEmail, status } = usePage<PageProps>().props;
 
     return (
-        <>
-            <Head title="Profile settings" />
-
-            <h1 className="sr-only">Profile settings</h1>
+        <div className="flex flex-col gap-6">
+            <Head title="Profile Settings" />
 
             <div className="space-y-6">
-                <Heading
-                    variant="small"
-                    title="Profile information"
-                    description="Update your name and email address"
-                />
+                <div>
+                    <h3 className="text-lg font-medium">Profile Information</h3>
+                    <p className="text-sm text-muted-foreground">
+                        Update your account's profile information and email address.
+                    </p>
+                </div>
 
                 <Form
-                    {...ProfileController.update.form()}
-                    options={{
-                        preserveScroll: true,
-                    }}
+                    {...update.form()}
                     className="space-y-6"
+                    onSuccess={() => {}}
                 >
-                    {({ processing, errors }) => (
+                    {({ processing, errors, data, setData, recentlySuccessful }) => (
                         <>
                             <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
+                                <Label htmlFor="name">Nama Lengkap</Label>
 
                                 <Input
                                     id="name"
                                     className="mt-1 block w-full"
-                                    defaultValue={auth.user.name}
-                                    name="name"
+                                    value={data.name}
+                                    onChange={(e) => setData('name', e.target.value)}
                                     required
                                     autoComplete="name"
-                                    placeholder="Full name"
+                                    placeholder="Masukkan nama lengkap"
                                 />
 
                                 <InputError
@@ -60,17 +51,17 @@ export default function Profile({
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
+                                <Label htmlFor="email">Alamat Email</Label>
 
                                 <Input
                                     id="email"
                                     type="email"
                                     className="mt-1 block w-full"
-                                    defaultValue={auth.user.email}
-                                    name="email"
+                                    value={data.email}
+                                    onChange={(e) => setData('email', e.target.value)}
                                     required
                                     autoComplete="username"
-                                    placeholder="Email address"
+                                    placeholder="nama@email.com"
                                 />
 
                                 <InputError
@@ -105,28 +96,27 @@ export default function Profile({
                                 )}
 
                             <div className="flex items-center gap-4">
-                                <Button
-                                    disabled={processing}
-                                    data-test="update-profile-button"
-                                >
-                                    Save
+                                <Button disabled={processing}>
+                                    {processing && <Spinner />}
+                                    Save changes
                                 </Button>
+
+                                <Transition
+                                    show={recentlySuccessful}
+                                    enter="transition ease-in-out"
+                                    enterFrom="opacity-0"
+                                    leave="transition ease-in-out"
+                                    leaveTo="opacity-0"
+                                >
+                                    <p className="text-sm text-muted-foreground">
+                                        Saved.
+                                    </p>
+                                </Transition>
                             </div>
                         </>
                     )}
                 </Form>
             </div>
-
-            <DeleteUser />
-        </>
+        </div>
     );
 }
-
-Profile.layout = {
-    breadcrumbs: [
-        {
-            title: 'Profile settings',
-            href: edit(),
-        },
-    ],
-};

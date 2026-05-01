@@ -14,7 +14,8 @@ use Inertia\Inertia;
 class LoanController extends Controller
 {
     public function __construct(
-        protected CashLedgerService $cashService
+        protected CashLedgerService $cashService,
+        protected \App\Services\SavingsService $savingsService
     ) {}
 
     /**
@@ -147,21 +148,43 @@ class LoanController extends Controller
             'description' => 'nullable|string|max:255',
         ]);
 
-        $repayment = $loan->repayments()->create($validated);
+        $paymentAmount = (float) $validated['amount'];
+        $remainingDebt = $loan->remaining_amount;
 
-        $cashAccount = $this->cashService->getMainAccount();
-        $this->cashService->record(
-            $cashAccount->id,
-            (float) $validated['amount'],
-            'income',
-            'angsuran',
-            "Pembayaran angsuran #{$loan->id} - {$loan->member->name}",
-            $repayment,
-            $validated['payment_date']
-        );
+        $actualRepayment = min($paymentAmount, $remainingDebt);
+        $overpay = max(0, $paymentAmount - $remainingDebt);
 
-        // Update jadwal angsuran yang sesuai
-        $this->markScheduleAsPaid($loan, (float) $validated['amount'], $validated['payment_date']);
+        // 1. Catat pembayaran pinjaman (maksimal sebesar sisa hutang)
+        if ($actualRepayment > 0) {
+            $validatedRepayment = $validated;
+            $validatedRepayment['amount'] = $actualRepayment;
+            $repayment = $loan->repayments()->create($validatedRepayment);
+
+            $cashAccount = $this->cashService->getMainAccount();
+            $this->cashService->record(
+                $cashAccount->id,
+                $actualRepayment,
+                'income',
+                'angsuran',
+                "Pembayaran angsuran #{$loan->id} - {$loan->member->name}",
+                $repayment,
+                $validated['payment_date']
+            );
+
+            // Update jadwal angsuran yang sesuai
+            $this->markScheduleAsPaid($loan, $actualRepayment, $validated['payment_date']);
+        }
+
+        // 2. Jika ada kelebihan bayar, otomatis masuk ke Simpanan Sukarela
+        if ($overpay > 0) {
+            $this->savingsService->deposit(
+                $loan->member,
+                'sukarela',
+                $overpay,
+                $validated['payment_date'],
+                "Otomatis dari kelebihan bayar pelunasan pinjaman #{$loan->id}"
+            );
+        }
 
         $loan->refresh();
         if ($loan->remaining_amount <= 0) {

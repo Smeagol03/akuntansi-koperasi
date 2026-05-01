@@ -299,7 +299,7 @@ export default function MembersIndex({ members: membersData, filters }: MembersP
                                                 id="name"
                                                 value={data.name}
                                                 onChange={(e) => setData('name', e.target.value)}
-                                                placeholder="John Doe"
+                                                placeholder="Nama lengkap sesuai KTP"
                                                 required
                                             />
                                             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}

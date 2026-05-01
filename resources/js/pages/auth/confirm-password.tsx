@@ -19,8 +19,7 @@ export default function ConfirmPassword() {
                             <PasswordInput
                                 id="password"
                                 name="password"
-                                placeholder="Password"
-                                autoComplete="current-password"
+                                placeholder="Masukkan kata sandi Anda"                                autoComplete="current-password"
                                 autoFocus
                             />
 
