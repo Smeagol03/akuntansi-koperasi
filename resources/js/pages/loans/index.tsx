@@ -41,6 +41,7 @@ interface Loan {
         member_number: string;
     };
     repayments: { id: number; amount: string; payment_date: string }[];
+    remaining_amount?: string | number;
 }
 
 interface LoansProps {
@@ -147,8 +148,11 @@ export default function LoansIndex({ loans: loansData, filters }: LoansProps) {
         );
     };
 
-    // Hitung sisa hutang untuk loan yang sedang dibayar
+    // Hitung sisa hutang untuk loan yang sedang dibayar (mengambil perhitungan mutlak dari backend)
     const getRemainingAmount = (loan: Loan) => {
+        if (loan.remaining_amount !== undefined) {
+            return parseFloat(loan.remaining_amount as any);
+        }
         const totalToPay = parseFloat(loan.monthly_installment) * loan.term_months;
         const totalPaid = loan.repayments.reduce((sum, r) => sum + parseFloat(r.amount), 0);
         return totalToPay - totalPaid;

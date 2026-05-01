@@ -19,6 +19,7 @@ interface LoanSchedule {
     installment_number: number;
     due_date: string;
     total_due: string;
+    paid_amount: string;
     status: string;
     loan: {
         member: {
@@ -116,7 +117,20 @@ export default function SchedulesIndex({ schedules, filters }: SchedulesProps) {
                     </Button>
                 </div>
             ),
-            cell: ({ row }) => <div className="text-right font-mono font-bold text-sm">{formatCurrency(parseFloat(row.original.total_due))}</div>
+            cell: ({ row }) => {
+                const total = parseFloat(row.original.total_due);
+                const paid = parseFloat(row.original.paid_amount || '0');
+                return (
+                    <div className="text-right flex flex-col items-end">
+                        <span className="font-mono font-bold text-sm">{formatCurrency(total)}</span>
+                        {row.original.status === 'partial' && (
+                            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-semibold">
+                                Sisa: {formatCurrency(total - paid)}
+                            </span>
+                        )}
+                    </div>
+                )
+            }
         },
         {
             accessorKey: "status",
@@ -129,6 +143,14 @@ export default function SchedulesIndex({ schedules, filters }: SchedulesProps) {
                     <div className="flex justify-center">
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 uppercase tracking-tighter">
                             <CheckCircle2 className="h-3 w-3" /> Lunas
+                        </span>
+                    </div>
+                );
+
+                if (status === 'partial') return (
+                    <div className="flex justify-center">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 uppercase tracking-tighter">
+                            <Clock className="h-3 w-3" /> Sebagian
                         </span>
                     </div>
                 );
@@ -203,6 +225,7 @@ export default function SchedulesIndex({ schedules, filters }: SchedulesProps) {
                             <SelectContent>
                                 <SelectItem value="all">Semua Status</SelectItem>
                                 <SelectItem value="pending">Menunggu Pembayaran</SelectItem>
+                                <SelectItem value="partial">🔵 Dibayar Sebagian</SelectItem>
                                 <SelectItem value="overdue">🔴 Terlewat (Overdue)</SelectItem>
                                 <SelectItem value="paid">🟢 Sudah Lunas</SelectItem>
                             </SelectContent>

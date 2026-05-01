@@ -63,6 +63,7 @@
                 <th class="text-right">Pokok</th>
                 <th class="text-right">Bunga</th>
                 <th class="text-right">Total Tagihan</th>
+                <th class="text-center">Status</th>
             </tr>
         </thead>
         <tbody>
@@ -73,6 +74,20 @@
                 <td class="text-right">{{ number_format($schedule->principal_amount, 0, ',', '.') }}</td>
                 <td class="text-right">{{ number_format($schedule->interest_amount, 0, ',', '.') }}</td>
                 <td class="text-right font-bold">{{ number_format($schedule->total_due, 0, ',', '.') }}</td>
+                <td style="text-align: center; font-size: 10px;">
+                    @if($schedule->status === 'paid')
+                        <span style="color: #059669; font-weight: bold;">LUNAS</span>
+                    @elseif($schedule->status === 'partial')
+                        <span style="color: #2563eb; font-weight: bold;">SEBAGIAN</span><br>
+                        <span style="color: #666;">(Sisa: {{ number_format($schedule->total_due - $schedule->paid_amount, 0, ',', '.') }})</span>
+                    @else
+                        @if(\Carbon\Carbon::parse($schedule->due_date)->isPast())
+                            <span style="color: #dc2626; font-weight: bold;">TERLEWAT</span>
+                        @else
+                            <span style="color: #9ca3af;">BELUM</span>
+                        @endif
+                    @endif
+                </td>
             </tr>
             @endforeach
         </tbody>
@@ -82,6 +97,7 @@
                 <td class="text-right font-bold">{{ number_format($loan->amount, 0, ',', '.') }}</td>
                 <td class="text-right font-bold">{{ number_format($loan->schedules->sum('interest_amount'), 0, ',', '.') }}</td>
                 <td class="text-right font-bold" style="background: #fef3c7; border: 1px solid #f59e0b;">Rp {{ number_format($loan->schedules->sum('total_due'), 0, ',', '.') }}</td>
+                <td></td>
             </tr>
         </tfoot>
     </table>

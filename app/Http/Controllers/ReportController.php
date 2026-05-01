@@ -194,7 +194,7 @@ class ReportController extends Controller
     private function calculateOutstandingPrincipal()
     {
         // Sisa pokok = total pokok pinjaman aktif - total porsi pokok yang sudah dibayar
-        // Porsi pokok didapat dari jadwal angsuran yang sudah berstatus 'paid'
+        // Termasuk pembayaran dari jadwal yang berstatus 'partial'
         $totalPrincipal = (float) DB::table('loans')
             ->where('status', 'active')
             ->sum('amount');
@@ -202,20 +202,21 @@ class ReportController extends Controller
         $paidPrincipal = (float) DB::table('loan_schedules')
             ->join('loans', 'loan_schedules.loan_id', '=', 'loans.id')
             ->where('loans.status', 'active')
-            ->where('loan_schedules.status', 'paid')
-            ->sum('loan_schedules.principal_amount');
+            ->where('loan_schedules.paid_amount', '>', 0)
+            ->sum(DB::raw('(loan_schedules.paid_amount * 1.0 * loan_schedules.principal_amount) / loan_schedules.total_due'));
 
-        return max(0, $totalPrincipal - $paidPrincipal);
+        return max(0, round($totalPrincipal - $paidPrincipal, 2));
     }
 
     private function calculateTotalInterestEarned()
     {
-        // Hitung dari jadwal angsuran yang sudah dibayar — akurat untuk flat & efektif
+        // Hitung dari porsi bunga yang aktual dibayar pada jadwal angsuran
+        // Termasuk jadwal yang baru dibayar sebagian ('partial')
         $result = (float) DB::table('loan_schedules')
             ->join('loans', 'loan_schedules.loan_id', '=', 'loans.id')
             ->whereIn('loans.status', ['active', 'paid_off'])
-            ->where('loan_schedules.status', 'paid')
-            ->sum('loan_schedules.interest_amount');
+            ->where('loan_schedules.paid_amount', '>', 0)
+            ->sum(DB::raw('(loan_schedules.paid_amount * 1.0 * loan_schedules.interest_amount) / loan_schedules.total_due'));
 
         return round($result, 2);
     }

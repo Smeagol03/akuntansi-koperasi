@@ -24,6 +24,11 @@ class Loan extends Model
         'approved_date',
     ];
 
+    protected $appends = [
+        'total_to_pay',
+        'remaining_amount',
+    ];
+
     public function member(): BelongsTo
     {
         return $this->belongsTo(Member::class);

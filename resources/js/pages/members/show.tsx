@@ -292,10 +292,21 @@ export default function MemberShow({ member, summary }: MemberShowProps) {
                                                                 <TableRow key={schedule.id}>
                                                                     <TableCell className="font-mono text-xs">{schedule.installment_number}</TableCell>
                                                                     <TableCell className="text-sm">{format(new Date(schedule.due_date), 'dd MMM yyyy')}</TableCell>
-                                                                    <TableCell className="text-right text-sm font-medium">{formatCurrency(parseFloat(schedule.total_due))}</TableCell>
+                                                                    <TableCell className="text-right text-sm font-medium">
+                                                                        <div className="flex flex-col items-end">
+                                                                            <span>{formatCurrency(parseFloat(schedule.total_due))}</span>
+                                                                            {schedule.status === 'partial' && (
+                                                                                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">
+                                                                                    Sisa: {formatCurrency(parseFloat(schedule.total_due) - parseFloat(schedule.paid_amount || '0'))}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </TableCell>
                                                                     <TableCell className="text-center">
                                                                         {schedule.status === 'paid' ? (
                                                                             <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
+                                                                        ) : schedule.status === 'partial' ? (
+                                                                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-bold text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 uppercase tracking-tighter">Sebagian</span>
                                                                         ) : (
                                                                             <Clock className="h-4 w-4 text-muted-foreground mx-auto" />
                                                                         )}

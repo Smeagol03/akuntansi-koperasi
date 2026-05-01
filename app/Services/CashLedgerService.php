@@ -91,24 +91,49 @@ class CashLedgerService
             // Ambil porsi bunga/pokok dari jadwal angsuran yang akurat
             $loan = $reference->loan;
 
-            // Cari jadwal angsuran yang belum dibayar untuk mendapatkan porsi aktual
-            $nextSchedule = $loan->schedules()
+            // Hitung secara akurat porsi bunga dan pokok dengan mendistribusikan pembayaran ke jadwal
+            $remainingPayment = $cashTrx->amount;
+            $interestAmount = 0;
+            $principalAmount = 0;
+
+            $pendingSchedules = $loan->schedules()
                 ->where('status', '!=', 'paid')
                 ->orderBy('installment_number', 'asc')
-                ->first();
+                ->get();
 
-            if ($nextSchedule && $nextSchedule->total_due > 0) {
-                // Gunakan rasio dari jadwal angsuran aktual (akurat untuk flat & efektif)
-                $interestRatio = $nextSchedule->interest_amount / $nextSchedule->total_due;
-            } else {
-                // Fallback: gunakan rasio rata-rata dari semua schedule
-                $totalInterest = $loan->schedules()->sum('interest_amount');
-                $totalDue = $loan->schedules()->sum('total_due');
-                $interestRatio = ($totalDue > 0) ? $totalInterest / $totalDue : 0;
+            foreach ($pendingSchedules as $schedule) {
+                if ($remainingPayment <= 0) break;
+
+                // Berapa tagihan yang tersisa di jadwal ini?
+                $dueForThisSchedule = $schedule->total_due - $schedule->paid_amount;
+                if ($dueForThisSchedule <= 0) continue;
+
+                // Rasio bunga untuk jadwal ini
+                $interestRatio = $schedule->total_due > 0 ? $schedule->interest_amount / $schedule->total_due : 0;
+                $principalRatio = $schedule->total_due > 0 ? $schedule->principal_amount / $schedule->total_due : 0;
+
+                if ($remainingPayment >= $dueForThisSchedule) {
+                    // Jadwal ini lunas dibayar
+                    // Gunakan proporsi dari sisa tagihan di jadwal ini
+                    $interestAmount += $dueForThisSchedule * $interestRatio;
+                    $principalAmount += $dueForThisSchedule * $principalRatio;
+                    $remainingPayment -= $dueForThisSchedule;
+                } else {
+                    // Jadwal ini dibayar sebagian
+                    $interestAmount += $remainingPayment * $interestRatio;
+                    $principalAmount += $remainingPayment * $principalRatio;
+                    $remainingPayment = 0;
+                }
             }
 
-            $interestAmount = round($cashTrx->amount * $interestRatio, 2);
-            $principalAmount = $cashTrx->amount - $interestAmount;
+            // Jika masih ada sisa pembayaran (overpay melebihi total seluruh tagihan)
+            if ($remainingPayment > 0) {
+                // Sisa uang ditaruh sebagai pokok pinjaman (atau bisa masuk ke pendapatan lain)
+                $principalAmount += $remainingPayment;
+            }
+
+            $interestAmount = round($interestAmount, 2);
+            $principalAmount = round($principalAmount, 2);
 
             $lines[] = ['coa_code' => $cashCoaCode, 'debit' => $cashTrx->amount, 'credit' => 0];
             $lines[] = ['coa_code' => '1310', 'debit' => 0, 'credit' => $principalAmount];
