@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Loan;
-use App\Models\Member;
 use App\Models\LoanSchedule;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\Member;
 use App\Services\CashLedgerService;
 use App\Services\LoanCalculator;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class LoanController extends Controller
 {
@@ -26,9 +26,9 @@ class LoanController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('member', function($q) use ($search) {
+            $query->whereHas('member', function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('member_number', 'like', "%{$search}%");
+                    ->orWhere('member_number', 'like', "%{$search}%");
             });
         }
 
@@ -40,7 +40,7 @@ class LoanController extends Controller
 
         return Inertia::render('loans/index', [
             'loans' => $loans,
-            'filters' => $request->only(['search', 'status'])
+            'filters' => $request->only(['search', 'status']),
         ]);
     }
 
@@ -54,9 +54,9 @@ class LoanController extends Controller
         // Filter berdasarkan pencarian nama/nomor anggota
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('loan.member', function($q) use ($search) {
+            $query->whereHas('loan.member', function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('member_number', 'like', "%{$search}%");
+                    ->orWhere('member_number', 'like', "%{$search}%");
             });
         }
 
@@ -65,7 +65,7 @@ class LoanController extends Controller
             $status = $request->status;
             if ($status === 'overdue') {
                 $query->where('status', '!=', 'paid')
-                      ->where('due_date', '<', now()->toDateString());
+                    ->where('due_date', '<', now()->toDateString());
             } else {
                 $query->where('status', $status);
             }
@@ -73,9 +73,9 @@ class LoanController extends Controller
 
         // Filter berdasarkan bulan jatuh tempo
         if ($request->filled('month')) {
-            $date = date_create($request->month . '-01');
+            $date = date_create($request->month.'-01');
             $query->whereMonth('due_date', $date->format('m'))
-                  ->whereYear('due_date', $date->format('Y'));
+                ->whereYear('due_date', $date->format('Y'));
         }
 
         // Penyortiran Default (Jatuh tempo terdekat)
@@ -83,7 +83,7 @@ class LoanController extends Controller
 
         return Inertia::render('loans/schedules', [
             'schedules' => $schedules,
-            'filters' => $request->only(['search', 'status', 'month'])
+            'filters' => $request->only(['search', 'status', 'month']),
         ]);
     }
 
@@ -92,8 +92,9 @@ class LoanController extends Controller
      */
     public function exportSchedule(Loan $loan)
     {
-        $loan->load(['member', 'schedules' => fn($q) => $q->orderBy('installment_number', 'asc')]);
+        $loan->load(['member', 'schedules' => fn ($q) => $q->orderBy('installment_number', 'asc')]);
         $pdf = Pdf::loadView('exports.loan-schedule', compact('loan'));
+
         return $pdf->download("Jadwal_Angsuran_{$loan->member->member_number}.pdf");
     }
 
@@ -115,9 +116,9 @@ class LoanController extends Controller
         $member = Member::where('member_number', $validated['member_number'])->firstOrFail();
 
         $financials = LoanCalculator::calculate(
-            (float) $validated['amount'], 
-            (float) $validated['interest_rate'], 
-            (int) $validated['term_months'], 
+            (float) $validated['amount'],
+            (float) $validated['interest_rate'],
+            (int) $validated['term_months'],
             $validated['interest_method']
         );
 
@@ -147,7 +148,7 @@ class LoanController extends Controller
         ]);
 
         $repayment = $loan->repayments()->create($validated);
-        
+
         $cashAccount = $this->cashService->getMainAccount();
         $this->cashService->record(
             $cashAccount->id,
@@ -158,6 +159,9 @@ class LoanController extends Controller
             $repayment,
             $validated['payment_date']
         );
+
+        // Update jadwal angsuran yang sesuai
+        $this->markScheduleAsPaid($loan, (float) $validated['amount'], $validated['payment_date']);
 
         $loan->refresh();
         if ($loan->remaining_amount <= 0) {
@@ -179,7 +183,7 @@ class LoanController extends Controller
         $oldStatus = $loan->status;
         $newStatus = $validated['status'];
         $data = ['status' => $newStatus];
-        
+
         if ($newStatus === 'approved' || $newStatus === 'active') {
             $data['approved_date'] = now()->format('Y-m-d');
             if ($loan->schedules()->count() === 0) {
@@ -201,17 +205,54 @@ class LoanController extends Controller
         }
 
         $loan->update($data);
+
         return redirect()->back();
+    }
+
+    /**
+     * Alokasikan pembayaran ke jadwal angsuran yang belum lunas
+     */
+    private function markScheduleAsPaid(Loan $loan, float $amount, string $paidDate): void
+    {
+        $remaining = $amount;
+
+        $pendingSchedules = $loan->schedules()
+            ->where('status', '!=', 'paid')
+            ->orderBy('installment_number', 'asc')
+            ->get();
+
+        foreach ($pendingSchedules as $schedule) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $due = $schedule->total_due - $schedule->paid_amount;
+
+            if ($remaining >= $due) {
+                $schedule->update([
+                    'paid_amount' => $schedule->total_due,
+                    'status' => 'paid',
+                    'paid_at' => $paidDate,
+                ]);
+                $remaining -= $due;
+            } else {
+                $schedule->update([
+                    'paid_amount' => $schedule->paid_amount + $remaining,
+                    'status' => 'partial',
+                ]);
+                $remaining = 0;
+            }
+        }
     }
 
     private function generateLoanSchedules(Loan $loan, $startDate)
     {
         $rows = LoanCalculator::generateScheduleRows(
-            (float) $loan->amount, 
-            (float) $loan->interest_rate, 
-            (int) $loan->term_months, 
-            (int) $loan->monthly_installment, 
-            $loan->interest_method, 
+            (float) $loan->amount,
+            (float) $loan->interest_rate,
+            (int) $loan->term_months,
+            (int) $loan->monthly_installment,
+            $loan->interest_method,
             $startDate
         );
 
@@ -230,7 +271,16 @@ class LoanController extends Controller
     /**
      * API JSON Endpoints tetap dipertahankan
      */
-    public function index(Member $member) { return response()->json($member->loans()->with('schedules', 'repayments')->get()); }
-    public function store(Request $request, Member $member) { /* ... */ }
-    public function repay(Request $request, Loan $loan) { /* ... */ }
+    public function index(Member $member)
+    {
+        return response()->json($member->loans()->with('schedules', 'repayments')->get());
+    }
+
+    public function store(Request $request, Member $member)
+    { /* ... */
+    }
+
+    public function repay(Request $request, Loan $loan)
+    { /* ... */
+    }
 }

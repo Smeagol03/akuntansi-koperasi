@@ -4,9 +4,6 @@ namespace App\Services;
 
 use App\Models\CashAccount;
 use App\Models\CashTransaction;
-use App\Models\SavingTransaction;
-use App\Models\LoanRepayment;
-use App\Models\Loan;
 use Illuminate\Support\Facades\DB;
 
 class CashLedgerService
@@ -29,7 +26,7 @@ class CashLedgerService
     ): CashTransaction {
         return DB::transaction(function () use ($accountId, $amount, $type, $category, $description, $reference, $date) {
             $date = $date ?? now()->toDateString();
-            
+
             // 1. Lock baris rekening untuk keamanan saldo
             $account = CashAccount::where('id', $accountId)->lockForUpdate()->firstOrFail();
 
@@ -69,7 +66,7 @@ class CashLedgerService
 
         if ($cashTrx->category === 'simpanan') {
             // Mapping Akun Simpanan berdasarkan jenis rekening
-            $savingAcc = $reference->account; 
+            $savingAcc = $reference->account;
             $savingCoaMap = [
                 'pokok' => '3110',
                 'wajib' => '3120',
@@ -85,28 +82,38 @@ class CashLedgerService
                 $lines[] = ['coa_code' => $targetCoa, 'debit' => $cashTrx->amount, 'credit' => 0];
                 $lines[] = ['coa_code' => $cashCoaCode, 'debit' => 0, 'credit' => $cashTrx->amount];
             }
-        } 
-        elseif ($cashTrx->category === 'pencairan') {
+        } elseif ($cashTrx->category === 'pencairan') {
             // Pencairan Pinjaman: Debit Piutang, Kredit Kas
             $lines[] = ['coa_code' => '1310', 'debit' => $cashTrx->amount, 'credit' => 0];
             $lines[] = ['coa_code' => $cashCoaCode, 'debit' => 0, 'credit' => $cashTrx->amount];
-        }
-        elseif ($cashTrx->category === 'angsuran') {
+        } elseif ($cashTrx->category === 'angsuran') {
             // Pembayaran Angsuran: Debit Kas, Kredit Piutang (Pokok) & Kredit Pendapatan (Bunga)
-            // Untuk akurasi, kita ambil porsi bunga dari loan aslinya
+            // Ambil porsi bunga/pokok dari jadwal angsuran yang akurat
             $loan = $reference->loan;
-            $interestRatio = ($loan->monthly_installment > 0) 
-                ? ($loan->monthly_installment - ($loan->amount / $loan->term_months)) / $loan->monthly_installment 
-                : 0;
-            
+
+            // Cari jadwal angsuran yang belum dibayar untuk mendapatkan porsi aktual
+            $nextSchedule = $loan->schedules()
+                ->where('status', '!=', 'paid')
+                ->orderBy('installment_number', 'asc')
+                ->first();
+
+            if ($nextSchedule && $nextSchedule->total_due > 0) {
+                // Gunakan rasio dari jadwal angsuran aktual (akurat untuk flat & efektif)
+                $interestRatio = $nextSchedule->interest_amount / $nextSchedule->total_due;
+            } else {
+                // Fallback: gunakan rasio rata-rata dari semua schedule
+                $totalInterest = $loan->schedules()->sum('interest_amount');
+                $totalDue = $loan->schedules()->sum('total_due');
+                $interestRatio = ($totalDue > 0) ? $totalInterest / $totalDue : 0;
+            }
+
             $interestAmount = round($cashTrx->amount * $interestRatio, 2);
             $principalAmount = $cashTrx->amount - $interestAmount;
 
             $lines[] = ['coa_code' => $cashCoaCode, 'debit' => $cashTrx->amount, 'credit' => 0];
             $lines[] = ['coa_code' => '1310', 'debit' => 0, 'credit' => $principalAmount];
             $lines[] = ['coa_code' => '4110', 'debit' => 0, 'credit' => $interestAmount];
-        }
-        else {
+        } else {
             // Default: Beban Operasional
             if ($cashTrx->type === 'income') {
                 $lines[] = ['coa_code' => $cashCoaCode, 'debit' => $cashTrx->amount, 'credit' => 0];
@@ -117,19 +124,19 @@ class CashLedgerService
             }
         }
 
-        if (!empty($lines)) {
+        if (! empty($lines)) {
             $this->accountingService->createEntry($date, $cashTrx->description, $lines, $cashTrx);
         }
     }
 
     public function getMainAccount(): CashAccount
     {
-        return CashAccount::where('name', 'Kas Utama')->first() 
+        return CashAccount::where('name', 'Kas Utama')->first()
             ?? CashAccount::create([
                 'name' => 'Kas Utama',
                 'type' => 'cash',
                 'balance' => 0,
-                'status' => 'active'
+                'status' => 'active',
             ]);
     }
 }

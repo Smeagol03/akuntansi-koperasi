@@ -2,12 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CashAccount;
 use App\Models\Loan;
 use App\Models\LoanSchedule;
 use App\Models\SavingTransaction;
-use App\Models\SavingAccount;
-use App\Models\CashAccount;
-use App\Models\Coa;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -127,7 +125,7 @@ class ReportController extends Controller
         // 5. Rasio Keuangan & Monitoring Akun
         $cashBalance = (float) CashAccount::sum('balance');
         $overdueAmount = (float) LoanSchedule::overdue()->sum('total_due');
-        
+
         $ratios = [
             'cash_on_hand' => $cashBalance,
             'npl' => $outstandingPrincipal > 0 ? round(($overdueAmount / $outstandingPrincipal) * 100, 2) : 0,
@@ -136,9 +134,9 @@ class ReportController extends Controller
 
         // 6. Analitik Lanjutan: Komposisi Risiko Kredit
         $loanRiskComposition = [
-            ['name' => 'Lancar', 'value' => (float) Loan::where('status', 'active')->whereDoesntHave('schedules', fn($q) => $q->overdue())->sum('amount')],
+            ['name' => 'Lancar', 'value' => (float) Loan::where('status', 'active')->whereDoesntHave('schedules', fn ($q) => $q->overdue())->sum('amount')],
             ['name' => 'Dalam Perhatian', 'value' => (float) Loan::where('status', 'pending')->sum('amount')],
-            ['name' => 'Macet (Overdue)', 'value' => (float) Loan::whereHas('schedules', fn($q) => $q->overdue())->sum('amount')],
+            ['name' => 'Macet (Overdue)', 'value' => (float) Loan::whereHas('schedules', fn ($q) => $q->overdue())->sum('amount')],
         ];
 
         return [
@@ -195,28 +193,30 @@ class ReportController extends Controller
 
     private function calculateOutstandingPrincipal()
     {
-        $result = DB::table('loans')
-            ->leftJoin('loan_repayments', 'loans.id', '=', 'loan_repayments.loan_id')
-            ->where('loans.status', 'active')
-            ->selectRaw('SUM(loans.monthly_installment * loans.term_months) - COALESCE(SUM(loan_repayments.amount), 0) as outstanding')
-            ->value('outstanding');
+        // Sisa pokok = total pokok pinjaman aktif - total porsi pokok yang sudah dibayar
+        // Porsi pokok didapat dari jadwal angsuran yang sudah berstatus 'paid'
+        $totalPrincipal = (float) DB::table('loans')
+            ->where('status', 'active')
+            ->sum('amount');
 
-        return (float) ($result ?? 0);
+        $paidPrincipal = (float) DB::table('loan_schedules')
+            ->join('loans', 'loan_schedules.loan_id', '=', 'loans.id')
+            ->where('loans.status', 'active')
+            ->where('loan_schedules.status', 'paid')
+            ->sum('loan_schedules.principal_amount');
+
+        return max(0, $totalPrincipal - $paidPrincipal);
     }
 
     private function calculateTotalInterestEarned()
     {
-        $result = DB::table('loan_repayments')
-            ->join('loans', 'loan_repayments.loan_id', '=', 'loans.id')
+        // Hitung dari jadwal angsuran yang sudah dibayar — akurat untuk flat & efektif
+        $result = (float) DB::table('loan_schedules')
+            ->join('loans', 'loan_schedules.loan_id', '=', 'loans.id')
             ->whereIn('loans.status', ['active', 'paid_off'])
-            ->selectRaw('
-                SUM(
-                    loan_repayments.amount / loans.monthly_installment
-                    * (loans.monthly_installment - (loans.amount / loans.term_months))
-                ) as total_interest
-            ')
-            ->value('total_interest');
+            ->where('loan_schedules.status', 'paid')
+            ->sum('loan_schedules.interest_amount');
 
-        return round((float) ($result ?? 0), 2);
+        return round($result, 2);
     }
 }

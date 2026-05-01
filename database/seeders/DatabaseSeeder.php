@@ -2,16 +2,16 @@
 
 namespace Database\Seeders;
 
-use App\Models\Member;
-use App\Models\User;
-use App\Models\SavingAccount;
-use App\Models\SavingTransaction;
-use App\Models\SavingInterestConfig;
-use App\Models\CashAccount;
 use App\Models\AppSetting;
+use App\Models\CashAccount;
 use App\Models\Loan;
-use App\Models\LoanRepayment;
+use App\Models\Member;
+use App\Models\SavingInterestConfig;
+use App\Models\User;
+use App\Services\CashLedgerService;
 use App\Services\LoanCalculator;
+use App\Services\SavingsService;
+use Faker\Factory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
         // ==========================================
         // BAGIAN 1: DATA MASTER (WAJIB UNTUK SISTEM)
         // ==========================================
-        
+
         // 1.1 Bagan Akun (COA) - Jantung Akuntansi
         $this->call(CoaSeeder::class);
 
@@ -49,8 +49,8 @@ class DatabaseSeeder extends Seeder
         // BAGIAN 2: DATA DUMMY / CONTOH (OPSIONAL)
         // ==========================================
         // Hapus atau beri komentar pada baris di bawah ini jika ingin database "BERSIH"
-        
-        $this->seedSampleData(); 
+
+        $this->seedSampleData();
     }
 
     private function seedMasterSettings()
@@ -88,23 +88,100 @@ class DatabaseSeeder extends Seeder
         CashAccount::updateOrCreate(['name' => 'Rekening Bank'], ['type' => 'bank', 'account_number' => '00123456789', 'balance' => 0, 'status' => 'active']);
     }
 
-    /**
-     * Logika untuk mengisi data contoh (Dummy)
-     */
     private function seedSampleData()
     {
         // Hanya jalankan jika di lingkungan lokal/testing
-        if (!app()->environment('local')) return;
+        if (! app()->environment('local')) {
+            return;
+        }
 
         $members = Member::factory()->count(10)->create();
-        $savingsService = app(\App\Services\SavingsService::class);
+        $savingsService = app(SavingsService::class);
         $cashMain = CashAccount::where('name', 'Kas Utama')->first();
 
+        // 1. Setoran Awal Simpanan Pokok & Wajib
         foreach ($members as $member) {
             $savingsService->deposit($member, 'pokok', 100000, $member->join_date, 'Setoran awal pokok');
             $savingsService->deposit($member, 'wajib', 50000, $member->join_date, 'Setoran awal wajib');
         }
+
+        // 2. Buat Pinjaman untuk 5 anggota pertama
+        $loanMembers = $members->take(5);
+        foreach ($loanMembers as $member) {
+            // Buat pinjaman active
+            $loan = Loan::factory()->create([
+                'member_id' => $member->id,
+                'status' => 'active',
+                'apply_date' => now()->subMonths(3)->format('Y-m-d'),
+                'approved_date' => now()->subMonths(3)->addDays(2)->format('Y-m-d'),
+            ]);
+
+            // Catat pencairan ke kas
+            $cashLedger = app(CashLedgerService::class);
+            $cashLedger->record(
+                $cashMain->id,
+                $loan->amount,
+                'expense',
+                'pencairan',
+                "Pencairan pinjaman #{$loan->id} - {$member->name}",
+                $loan,
+                $loan->approved_date
+            );
+
+            // Generate jadwal
+            $rows = LoanCalculator::generateScheduleRows(
+                (float) $loan->amount,
+                (float) $loan->interest_rate,
+                (int) $loan->term_months,
+                (float) $loan->monthly_installment,
+                $loan->interest_method,
+                $loan->approved_date
+            );
+
+            foreach ($rows as $row) {
+                $loan->schedules()->create([
+                    'installment_number' => $row['installment_number'],
+                    'due_date' => $row['due_date'],
+                    'principal_amount' => $row['principal_amount'],
+                    'interest_amount' => $row['interest_amount'],
+                    'total_due' => $row['total_due'],
+                    'status' => 'pending',
+                ]);
+            }
+
+            // Simulasi pembayaran 2 bulan pertama
+            $schedulesToPay = $loan->schedules()->orderBy('installment_number')->take(2)->get();
+            foreach ($schedulesToPay as $schedule) {
+                // Buat repayment record
+                $repayment = $loan->repayments()->create([
+                    'amount' => $schedule->total_due,
+                    'payment_date' => $schedule->due_date,
+                    'description' => "Pembayaran angsuran ke-{$schedule->installment_number}",
+                ]);
+
+                // Update schedule
+                $schedule->update([
+                    'status' => 'paid',
+                    'paid_amount' => $schedule->total_due,
+                    'paid_at' => $schedule->due_date,
+                ]);
+
+                // Jurnal kas untuk angsuran
+                $cashLedger->record(
+                    $cashMain->id,
+                    $schedule->total_due,
+                    'income',
+                    'angsuran',
+                    "Pembayaran angsuran #{$loan->id} - {$member->name}",
+                    $repayment,
+                    $schedule->due_date
+                );
+            }
+        }
     }
 
-    private function faker() { return \Faker\Factory::create(); }
+    private function faker()
+    {
+        return Factory::create();
+    }
 }

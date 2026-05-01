@@ -15,7 +15,8 @@ test('non-admin users cannot visit the dashboard', function () {
     $this->actingAs($user);
 
     $response = $this->get(route('dashboard'));
-    $response->assertForbidden();
+    $response->assertRedirect(route('home'))
+        ->assertSessionHas('error');
 });
 
 test('admin users can visit the dashboard', function () {

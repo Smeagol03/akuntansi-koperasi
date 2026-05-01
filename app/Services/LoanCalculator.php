@@ -22,14 +22,14 @@ class LoanCalculator
 
     public static function calculateFlat(float $principal, float $ratePercent, int $term): array
     {
-        $monthlyPrincipal = $principal / $term;
-        $monthlyInterest = $principal * ($ratePercent / 100);
+        $monthlyInterest = (int) round($principal * ($ratePercent / 100));
+        $monthlyPrincipal = (int) round($principal / $term);
         $monthlyTotal = $monthlyPrincipal + $monthlyInterest;
 
         return [
-            'monthly_total' => (int) round($monthlyTotal),
-            'monthly_principal' => (int) round($monthlyPrincipal),
-            'monthly_interest' => (int) round($monthlyInterest),
+            'monthly_total' => $monthlyTotal,
+            'monthly_principal' => $monthlyPrincipal,
+            'monthly_interest' => $monthlyInterest,
         ];
     }
 
@@ -39,6 +39,7 @@ class LoanCalculator
 
         if ($i == 0) {
             $monthly = (int) round($principal / $term);
+
             return [
                 'monthly_total' => $monthly,
                 'monthly_principal' => $monthly,
@@ -46,15 +47,15 @@ class LoanCalculator
             ];
         }
 
-        $annuity = $principal * ($i * pow(1 + $i, $term)) / (pow(1 + $i, $term) - 1);
+        $annuity = (int) round($principal * ($i * pow(1 + $i, $term)) / (pow(1 + $i, $term) - 1));
 
-        $firstMonthInterest = $principal * $i;
+        $firstMonthInterest = (int) round($principal * $i);
         $firstMonthPrincipal = $annuity - $firstMonthInterest;
 
         return [
-            'monthly_total' => (int) round($annuity),
-            'monthly_principal' => (int) round($firstMonthPrincipal),
-            'monthly_interest' => (int) round($firstMonthInterest),
+            'monthly_total' => $annuity,
+            'monthly_principal' => $firstMonthPrincipal,
+            'monthly_interest' => $firstMonthInterest,
         ];
     }
 

@@ -44,11 +44,19 @@ class Loan extends Model
      */
     public function getTotalToPayAttribute()
     {
+        // Gunakan jadwal angsuran jika tersedia (akurat untuk flat & efektif)
+        $scheduleTotal = $this->schedules()->sum('total_due');
+
+        if ($scheduleTotal > 0) {
+            return (float) $scheduleTotal;
+        }
+
+        // Fallback untuk pinjaman yang belum punya jadwal
         return $this->monthly_installment * $this->term_months;
     }
 
     /**
-     * Hitung sisa hutang
+     * Hitung sisa hutang (total yang harus dibayar - yang sudah dibayar)
      */
     public function getRemainingAmountAttribute()
     {
